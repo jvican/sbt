@@ -135,7 +135,7 @@ object Compiler {
 
   def compile(in: Inputs, log: Logger): CompileResult =
     {
-      sbt.inc.IncrementalCompilerUtil.defaultIncrementalCompiler.compile(in, log)
+      sbt.inc.ZincUtils.defaultIncrementalCompiler.compile(in, log)
       // import in.inputs.config._
       // compile(in, log, new LoggerReporter(maxErrors, log, sourcePositionMapper))
     }

@@ -10,7 +10,7 @@ import com.typesafe.tools.mima.plugin.MimaPlugin.mimaDefaultSettings
 // but can be shared across the multi projects.
 def buildLevelSettings: Seq[Setting[_]] = inThisBuild(Seq(
   organization := "org.scala-sbt",
-  version := "1.0.0-SNAPSHOT",
+  version := "1.0.0-X9-SNAPSHOT",
   description := "sbt is an interactive build tool",
   bintrayOrganization := Some("sbt"),
   bintrayRepository := {

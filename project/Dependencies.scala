@@ -14,7 +14,7 @@ object Dependencies {
   private val ioVersion = "1.0.0-M9"
   private val utilVersion = "1.0.0-M18"
   private val lmVersion = "1.0.0-X5"
-  private val zincVersion = "1.0.0-X8"
+  private val zincVersion = "1.0.0-X9-SNAPSHOT"
 
   private val sbtIO = "org.scala-sbt" %% "io" % ioVersion
 
@@ -87,7 +87,7 @@ object Dependencies {
   def addSbtZinc(p: Project): Project = addSbtModule(p, sbtZincPath, "zinc", zinc)
   def addSbtZincCompile(p: Project): Project = addSbtModule(p, sbtZincPath, "zincCompile", zincCompile)
 
-  val sjsonNewScalaJson = "com.eed3si9n" %% "sjson-new-scalajson" % "0.7.0"
+  val sjsonNewScalaJson = "com.eed3si9n" %% "sjson-new-scalajson" % "0.7.1"
 
   val scalaCheck = "org.scalacheck" %% "scalacheck" % "1.13.4"
   val specs2 = "org.specs2" %% "specs2" % "2.4.17"

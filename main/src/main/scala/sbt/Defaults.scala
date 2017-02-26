@@ -595,7 +595,7 @@ object Defaults extends BuildCommon {
             rel.internalClassDeps(c).map(intlStamp(_, analysis, s + c)) ++
               rel.externalDeps(c).map(stamp) +
               (apis.internal.get(c) match {
-                case Some(x) => x.compilationTimestamp()
+                case Some(x) => x.compilationTimestamp
                 case _       => Long.MinValue
               })
           }.max
@@ -2004,7 +2004,7 @@ object Classpaths {
             val analysisOpt = previousCompile.value.analysis
             dirs map { x =>
               (x, if (analysisOpt.isDefined) analysisOpt.get
-              else Analysis.empty(true))
+              else Analysis.empty)
             }
           }
       }
@@ -2026,7 +2026,7 @@ object Classpaths {
             val analysisOpt = previousCompile.value.analysis
             Seq(jar) map { x =>
               (x, if (analysisOpt.isDefined) analysisOpt.get
-              else Analysis.empty(true))
+              else Analysis.empty)
             }
           }
       }
