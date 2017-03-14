@@ -341,17 +341,15 @@ ${listConflicts(conflicting)}""")
     }
 
   private[sbt] def hasAutoImportGetter(ap: AutoPlugin, loader: ClassLoader): Boolean = {
-    import reflect.runtime.{universe => ru}
     import util.control.Exception.catching
-    val m = ru.runtimeMirror(loader)
-    val im = m.reflect(ap)
-    val hasGetterOpt = catching(classOf[ScalaReflectionException]) opt {
-      im.symbol.asType.toType.declaration(ru.newTermName("autoImport")) match {
-        case ru.NoSymbol => false
-        case sym => sym.asTerm.isGetter || sym.asTerm.isModule
-      }
+    val pluginClazz = ap.getClass
+    val autoImportExists = catching(classOf[ClassNotFoundException]).opt {
+      val autoImportClassName = s"${pluginClazz.getName}autoImport$$"
+      val fields = pluginClazz.getDeclaredFields
+      fields.exists(_.getName == "autoImport") ||
+        {Class.forName(autoImportClassName, false, loader); true}
     }
-    hasGetterOpt getOrElse false
+    autoImportExists.getOrElse(false)
   }
 
   /** Debugging method to time how long it takes to run various compilation tasks. */
