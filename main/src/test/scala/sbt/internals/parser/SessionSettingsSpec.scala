@@ -38,6 +38,7 @@ abstract class AbstractSessionSettingsSpec(folder: String) extends AbstractSpec 
           case (expectedResultList, commands) =>
             val resultList = SbtRefactorings.applySessionSettings((file, originalLines), commands)
             val expected = SbtParser(file, expectedResultList)
+            println(s"RESULT LIST ${resultList._2}")
             val result = SbtParser(file, resultList._2)
             result.settings must_== expected.settings
 
