@@ -82,6 +82,9 @@ private[sbt] object SbtParser {
     def throwParserErrorsIfAny(reporter: StoreReporter, fileName: String): Unit = {
       if (reporter.hasErrors) {
         val seq = reporter.infos.map { info =>
+          println("POS")
+          println(info.pos)
+          println(info.pos.lineContent)
           s"""[$fileName]:${info.pos.line}: ${info.msg}"""
         }
         val errorMessage = seq.mkString(EOL)
@@ -186,9 +189,10 @@ private[sbt] case class SbtParser(file: File, lines: Seq[String]) extends Parsed
 
   import SbtParser.defaultGlobalForParser._
 
-  private def splitExpressions(file: File, lines: Seq[String]): (Seq[(String, Int)], Seq[(String, LineRange)], Seq[(String, Tree)]) = {
-    import sbt.internals.parser.MissingBracketHandler._
+  type StatWith[T] = (String, T)
+  type StatsWith[T] = Seq[StatWith[T]]
 
+  private def splitExpressions(file: File, lines: Seq[String]): (StatsWith[Int], StatsWith[LineRange], StatsWith[Tree]) = {
     val indexedLines = lines.toIndexedSeq
     val content = indexedLines.mkString(END_OF_LINE)
     val fileName = file.getAbsolutePath
@@ -202,6 +206,7 @@ private[sbt] case class SbtParser(file: File, lines: Seq[String]) extends Parsed
           !(c contains "=")
         case _ => false
       }
+
     parsedTrees.filter(isBadValDef).foreach { badTree =>
       // Issue errors
       val positionLine = badTree.pos.line
@@ -213,37 +218,48 @@ private[sbt] case class SbtParser(file: File, lines: Seq[String]) extends Parsed
       case _         => false
     }
 
-    /**
-     * See BugInParser
-     * @param t - tree
-     * @param originalStatement - original
-     * @return originalStatement or originalStatement with missing bracket
-     */
-    def parseStatementAgain(t: Tree, originalStatement: String): String = {
-      val statement = util.Try(parse(originalStatement, fileName, Some(reporterId))) match {
-        case util.Failure(th) =>
-          val missingText = findMissingText(content, t.pos.end, t.pos.line, fileName, th, Some(reporterId))
-          originalStatement + missingText
-        case _ =>
-          originalStatement
-      }
-      statement
+    println(s"PARSING ${file.getAbsolutePath}")
+    val statementsWithPos = statements.filter(_.pos.isDefined)
+    val statementsWithContent = {
+      if (statementsWithPos.nonEmpty) {
+        val startPositions = statementsWithPos.map(_.pos.start)
+        val lastPos = content.length
+        val nextStartPositions = startPositions.tail ++ Seq(lastPos)
+
+        statementsWithPos.iterator.zip(nextStartPositions.iterator).map {
+          case (tree: Tree, posNextStatement: Int) =>
+            val position = tree.pos
+            val startPos = position.start
+            var lastPos = posNextStatement - 1
+            /*            var lastChar = content.charAt(lastPos)
+            var secondLastChar = content.charAt(lastPos - 1)
+            while (lastChar == '\n' && (secondLastChar == '\n' || secondLastChar == '}')) {
+              lastPos -= 1
+              lastChar = content.charAt(lastPos)
+              secondLastChar = content.charAt(lastPos - 1)
+            }*/
+            val originalStatement = content.substring(startPos, lastPos + 1)
+            tree.pos = position.withEnd(lastPos)
+            val endLine = position.source.offsetToLine(lastPos)
+            val range = LineRange(position.line - 1, endLine + 1)
+            (originalStatement -> tree) -> (originalStatement -> range)
+        }.toList
+      } else Nil
     }
 
-    def convertStatement(t: Tree): Option[(String, Tree, LineRange)] =
-      t.pos match {
-        case NoPosition =>
-          None
-        case position =>
-          val originalStatement = content.substring(position.start, position.end)
-          val statement = parseStatementAgain(t, originalStatement)
-          val numberLines = countLines(statement)
-          Some((statement, t, LineRange(position.line - 1, position.line + numberLines)))
-      }
-    val stmtTreeLineRange = statements flatMap convertStatement
     val importsLineRange = importsToLineRanges(content, imports)
-    (importsLineRange, stmtTreeLineRange.map { case (stmt, _, lr) => (stmt, lr) }, stmtTreeLineRange.map { case (stmt, tree, _) => (stmt, tree) })
+    val (statsWithTrees, statsWithLines) = statementsWithContent.unzip
+    (importsLineRange, statsWithLines, statsWithTrees)
   }
+  /*            if (posNextStatement == content.length)
+              println("We're at the end of the sbt file.")
+            if (posNextStatement - 1 != lastPos)
+              println(s"We changed end from '${content.substring(startPos, posNextStatement)}' to '${originalStatement}'")*/
+
+  /*            println("LINE CONTENT")
+  println(originalStatement)
+  println(s"LAST POS $lastPos, RECEIVED LAST ${posNextStatement - 1}")
+  println(s"LAST CHAR $lastChar, RECEIVED LAST CHAR ${content.charAt(posNextStatement - 1)}")*/
 
   /**
    * import sbt._, Keys._,java.util._ should return ("import sbt._, Keys._,java.util._",0)
@@ -282,8 +298,6 @@ private[sbt] case class SbtParser(file: File, lines: Seq[String]) extends Parsed
     }
     modifiedContent.substring(begin, end)
   }
-
-  private def countLines(statement: String) = statement.count(c => c == END_OF_LINE_CHAR)
 }
 
 /**

@@ -31,10 +31,20 @@ private[sbt] object SbtRefactorings {
 
   private def replaceFromBottomToTop(modifiedContent: String, sortedRecordedCommands: Seq[(Int, String, String)]) = {
     sortedRecordedCommands.foldLeft(modifiedContent) {
-      case (acc, (from, old, replacement)) =>
+      case (acc, (from, old, replacement0)) =>
         val before = acc.substring(0, from)
         val after = acc.substring(from + old.length, acc.length)
         val afterLast = emptyStringForEmptyString(after)
+        // Add a semicolon at the end if
+        val replacement = {
+          val lastIndex = replacement0.length - 1
+          if (replacement0.isEmpty) replacement0
+          else {
+            val lastChar = replacement0.charAt(lastIndex)
+            if (lastChar != '\n' && lastChar != ';') s"$replacement0\n"
+            else replacement0
+          }
+        }
         before + replacement + afterLast
     }
   }
