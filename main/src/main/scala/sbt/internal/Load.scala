@@ -1139,15 +1139,20 @@ private[sbt] object Load {
       case None => config
     }
 
-  def plugins(dir: File, s: State, config: LoadBuildConfiguration): LoadedPlugins =
-    if (hasDefinition(dir))
-      buildPlugins(dir, s, enableSbtPlugin(activateGlobalPlugin(config)))
-    else
-      noPlugins(dir, config)
-
-  def hasDefinition(dir: File) = {
-    import sbt.io.syntax._
-    (dir * -GlobFilter(DefaultTargetName)).get.nonEmpty
+  /** Returns [[LoadedPlugins]] from the current build information.
+    *
+    * If the current dir does not have any target directory, no plugins are loaded.
+    *
+    * @param dir The build directory.
+    * @param s The given state.
+    * @param config The configuration of the loaded build.
+    * @return An instance of [[LoadedPlugins]].
+    */
+  def plugins(dir: File, s: State, config: LoadBuildConfiguration): LoadedPlugins = {
+    import sbt.io.syntax.singleFileFinder
+    def hasDefinition(dir: File) = (dir * -GlobFilter(DefaultTargetName)).get.nonEmpty
+    if (!hasDefinition(dir)) noPlugins(dir, config)
+    else buildPlugins(dir, s, enableSbtPlugin(activateGlobalPlugin(config)))
   }
 
   def noPlugins(dir: File, config: LoadBuildConfiguration): LoadedPlugins =
