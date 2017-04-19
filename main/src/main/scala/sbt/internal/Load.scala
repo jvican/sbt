@@ -114,11 +114,13 @@ private[sbt] object Load {
       case _: NoSuchMethodError => None
     }
 
+  private lazy val invariantGlobalSettings: Seq[Setting[_]] =
+    DefaultBackgroundJobService.backgroundJobServiceSetting +:
+      EvaluateTask.injectSettings
+
   def injectGlobal(state: State): Seq[Setting[_]] =
     (appConfiguration in GlobalScope :== state.configuration) +:
-      LogManager.settingsLogger(state) +:
-      DefaultBackgroundJobService.backgroundJobServiceSetting +:
-      EvaluateTask.injectSettings
+      LogManager.settingsLogger(state) +: invariantGlobalSettings
 
   /** Load and aggregate global sbt configuration and settings to the loaded
    * build configuration.

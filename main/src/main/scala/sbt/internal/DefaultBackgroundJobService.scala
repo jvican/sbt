@@ -317,5 +317,5 @@ private[sbt] class DefaultBackgroundJobService extends AbstractBackgroundJobServ
 private[sbt] object DefaultBackgroundJobService {
   lazy val backgroundJobService: DefaultBackgroundJobService = new DefaultBackgroundJobService
   lazy val backgroundJobServiceSetting: Setting[_] =
-    ((Keys.bgJobService in GlobalScope) :== backgroundJobService)
+    (Keys.bgJobService in GlobalScope) :== backgroundJobService
 }

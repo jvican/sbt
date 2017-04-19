@@ -237,7 +237,7 @@ object EvaluateTask {
                     structure: BuildStructure): T =
     key in extracted.currentRef get structure.data getOrElse default
 
-  def injectSettings: Seq[Setting[_]] = Seq(
+  lazy val injectSettings: Seq[Setting[_]] = Seq(
     (state in GlobalScope) ::= dummyState,
     (streamsManager in GlobalScope) ::= Def.dummyStreamsManager,
     (executionRoots in GlobalScope) ::= dummyRoots
