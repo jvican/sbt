@@ -158,11 +158,17 @@ private[sbt] object Load {
     */
   def defaultWithGlobal(context: BuildContext,
                         previousConfig: LoadBuildConfiguration): LoadBuildConfiguration = {
+    def loadGlobal(globalPluginsDir: File): LoadBuildConfiguration = {
+      if (context.baseDirectory != globalPluginsDir && globalPluginsDir.exists) {
+        val gp = GlobalPlugin.load(globalPluginsDir, context.state, previousConfig)
+        previousConfig.copy(globalPlugin = Some(gp))
+      } else previousConfig
+    }
+
     val state = context.state
     val base = context.baseDirectory
     val globalBase = context.globalDirectory
-    val globalPluginsDir = getGlobalPluginsDirectory(state, globalBase)
-    val withGlobal = loadGlobal(state, base, globalPluginsDir, previousConfig)
+    val withGlobal = loadGlobal(getGlobalPluginsDirectory(state, globalBase))
     val globalSettings = configurationSources(getGlobalSettingsDirectory(state, globalBase))
     loadGlobalSettings(base, globalBase, globalSettings, withGlobal)
   }
@@ -198,16 +204,6 @@ private[sbt] object Load {
     val allGlobalSettings = config.injectSettings.copy(projectLoaded = projectLoader)
     config.copy(injectSettings = allGlobalSettings)
   }
-
-  def loadGlobal(state: State,
-                 base: File,
-                 global: File,
-                 config: LoadBuildConfiguration): LoadBuildConfiguration =
-    if (base != global && global.exists) {
-      val gp = GlobalPlugin.load(global, state, config)
-      config.copy(globalPlugin = Some(gp))
-    } else
-      config
 
   def defaultDelegates: LoadedBuild => Scope => Seq[Scope] = (lb: LoadedBuild) => {
     val rootProject = getRootProject(lb.units)
