@@ -120,6 +120,16 @@ private[sbt] object Load {
       DefaultBackgroundJobService.backgroundJobServiceSetting +:
       EvaluateTask.injectSettings
 
+  /** Load and aggregate global sbt configuration and settings to the loaded
+   * build configuration.
+   *
+   * @param state The given state.
+   * @param base The base directory of the build.
+   * @param rawConfig The recently created configuration.
+   * @param globalBase The global sbt base directory.
+   * @param log The logger.
+   * @return The loaded build configuration with information from `Global`.
+   */
   def defaultWithGlobal(state: State,
                         base: File,
                         rawConfig: LoadBuildConfiguration,
