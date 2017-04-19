@@ -47,23 +47,35 @@ import sbt.util.Logger
 import xsbti.compile.Compilers
 
 private[sbt] object Load {
-  // note that there is State passed in but not pulled out
+  type EvalGenerator = () => Eval
+
+  /** Load the whole sbt build.
+   *
+   * Note that any modification to the state will not be persisted, the load
+   * API will only get values from it but it will not persist the last state.
+   *
+   * @param state The very initial state.
+   * @param baseDirectory The base directory.
+   * @param log The logger.
+   * @param isPlugin Flag to support projects acting as meta builds.
+   * @param topLevelExtraBuilds Extra top level builds.
+   * @return A tuple of an eval generator and the read build structure.
+   */
   def defaultLoad(state: State,
                   baseDirectory: File,
                   log: Logger,
                   isPlugin: Boolean = false,
-                  topLevelExtras: List[URI] = Nil): (() => Eval, BuildStructure) = {
-    val (base, config) = timed("Load.defaultLoad until apply", log) {
-      val globalBase = getGlobalBase(state)
-      val base = baseDirectory.getCanonicalFile
-      val rawConfig = defaultPreGlobal(state, base, globalBase, log)
-      val config0 = defaultWithGlobal(state, base, rawConfig, globalBase, log)
-      val config =
-        if (isPlugin) enableSbtPlugin(config0) else config0.copy(extraBuilds = topLevelExtras)
-      (base, config)
-    }
-    val result = apply(base, state, config)
-    result
+                  topLevelExtraBuilds: List[URI] = Nil): (EvalGenerator, BuildStructure) = {
+    val globalBase = getGlobalBase(state)
+    val base = baseDirectory.getCanonicalFile
+    val initialConfig =
+      timed("Load.defaultPreGlobal", log)(defaultPreGlobal(state, base, globalBase, log))
+    val globalConfig = timed("Load.defaultWithGlobal", log)(
+      defaultWithGlobal(state, base, initialConfig, globalBase, log))
+    val finalBuildConfiguration: LoadBuildConfiguration =
+      if (isPlugin) enableSbtPlugin(globalConfig)
+      else globalConfig.copy(extraBuilds = topLevelExtraBuilds)
+    apply(base, state, finalBuildConfiguration)
   }
 
   /** Loads the initial, raw build configuration from the basic build environment.
