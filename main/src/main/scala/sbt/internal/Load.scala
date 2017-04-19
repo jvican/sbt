@@ -66,6 +66,14 @@ private[sbt] object Load {
     result
   }
 
+  /** Loads the initial, raw build configuration from the basic build environment.
+   *
+   * @param state The initial state.
+   * @param baseDirectory The build base directory.
+   * @param globalBase The global build directory.
+   * @param log The logger.
+   * @return A raw build configuration.
+   */
   def defaultPreGlobal(state: State,
                        baseDirectory: File,
                        globalBase: File,
@@ -79,8 +87,9 @@ private[sbt] object Load {
     val lock = None
     val checksums = Vector.empty
     val ivyPaths = IvyPaths(baseDirectory, bootIvyHome(state.configuration))
+    val defaultResolvers = Resolver.withDefaultResolvers(Nil).toVector
     val ivyConfiguration = new InlineIvyConfiguration(ivyPaths,
-                                                      Resolver.withDefaultResolvers(Nil).toVector,
+                                                      defaultResolvers,
                                                       Vector.empty,
                                                       Vector.empty,
                                                       localOnly,
@@ -94,7 +103,7 @@ private[sbt] object Load {
     val evalPluginDef = EvaluateTask.evalPluginDef(log) _
     val delegates = defaultDelegates
     val pluginMgmt = PluginManagement(loader)
-    val inject = InjectSettings(injectGlobal(state), Nil, const(Nil))
+    val defaultInjected = InjectSettings(injectGlobal(state), Nil, const(Nil))
     LoadBuildConfiguration(stagingDirectory,
                            classpath,
                            loader,
@@ -103,7 +112,7 @@ private[sbt] object Load {
                            delegates,
                            EvaluateTask.injectStreams,
                            pluginMgmt,
-                           inject,
+                           defaultInjected,
                            None,
                            Nil,
                            log)
