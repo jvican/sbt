@@ -114,8 +114,9 @@ object SettingQueryTest extends org.specs2.mutable.Specification {
         .initialState(appConfig, initialDefinitions = Seq(), preCommands = Seq())
         .put(globalBaseDirectory, globalDirFile)
 
-    val config0 = defaultPreGlobal(state, baseFile, globalDirFile, state.log)
-    val config = defaultWithGlobal(state, baseFile, config0, globalDirFile, state.log)
+    val context = BuildContext(state, baseFile, globalDirFile, state.log)
+    val config0 = defaultPreGlobal(context)
+    val config = defaultWithGlobal(context, config0)
 
     val buildUnit: BuildUnit = {
       val loadedPlugins: LoadedPlugins =

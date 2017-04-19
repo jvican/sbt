@@ -49,6 +49,18 @@ import xsbti.compile.Compilers
 private[sbt] object Load {
   type EvalGenerator = () => Eval
 
+  /** Defines the initial build environment used to load the build configuration.
+    *
+    * @param state The read-only state.
+    * @param baseDirectory The base directory.
+    * @param globalDirectory The global directory.
+    * @param log The logger.
+    */
+  private[sbt] case class BuildContext(state: State,
+                                       baseDirectory: File,
+                                       globalDirectory: File,
+                                       log: Logger)
+
   /** Load the whole sbt build.
    *
    * Note that any modification to the state will not be persisted, the load
@@ -68,10 +80,9 @@ private[sbt] object Load {
                   topLevelExtraBuilds: List[URI] = Nil): (EvalGenerator, BuildStructure) = {
     val globalBase = getGlobalBase(state)
     val base = baseDirectory.getCanonicalFile
-    val initialConfig =
-      timed("Load.defaultPreGlobal", log)(defaultPreGlobal(state, base, globalBase, log))
-    val globalConfig = timed("Load.defaultWithGlobal", log)(
-      defaultWithGlobal(state, base, initialConfig, globalBase, log))
+    val context = BuildContext(state, base, globalBase, log)
+    val initialConfig = timed("Load.defaultPreGlobal", log)(defaultPreGlobal(context))
+    val globalConfig = timed("Load.defaultWithGlobal", log)(defaultWithGlobal(context, initialConfig))
     val finalBuildConfiguration: LoadBuildConfiguration =
       if (isPlugin) enableSbtPlugin(globalConfig)
       else globalConfig.copy(extraBuilds = topLevelExtraBuilds)
@@ -79,26 +90,21 @@ private[sbt] object Load {
   }
 
   /** Loads the initial, raw build configuration from the basic build environment.
-   *
-   * @param state The initial state.
-   * @param baseDirectory The build base directory.
-   * @param globalBase The global build directory.
-   * @param log The logger.
-   * @return A raw build configuration.
-   */
-  def defaultPreGlobal(state: State,
-                       baseDirectory: File,
-                       globalBase: File,
-                       log: Logger): LoadBuildConfiguration = {
+    *
+    * @param context The build context.
+    * @return A raw build configuration.
+    */
+  def defaultPreGlobal(context: BuildContext): LoadBuildConfiguration = {
+    val (state, log) = (context.state, context.log)
     val provider = state.configuration.provider
     val scalaProvider = provider.scalaProvider
-    val stagingDirectory = getStagingDirectory(state, globalBase).getCanonicalFile
+    val stagingDirectory = getStagingDirectory(state, context.globalDirectory).getCanonicalFile
     val loader = getClass.getClassLoader
     val classpath = Attributed.blankSeq(provider.mainClasspath ++ scalaProvider.jars)
     val localOnly = false
     val lock = None
     val checksums = Vector.empty
-    val ivyPaths = IvyPaths(baseDirectory, bootIvyHome(state.configuration))
+    val ivyPaths = IvyPaths(context.baseDirectory, bootIvyHome(state.configuration))
     val defaultResolvers = Resolver.withDefaultResolvers(Nil).toVector
     val ivyConfiguration = new InlineIvyConfiguration(ivyPaths,
                                                       defaultResolvers,
@@ -144,22 +150,19 @@ private[sbt] object Load {
       LogManager.settingsLogger(state) +: invariantGlobalSettings
 
   /** Load and aggregate global sbt configuration and settings to the loaded
-   * build configuration.
-   *
-   * @param state The given state.
-   * @param base The base directory of the build.
-   * @param rawConfig The recently created configuration.
-   * @param globalBase The global sbt base directory.
-   * @param log The logger.
-   * @return The loaded build configuration with information from `Global`.
-   */
-  def defaultWithGlobal(state: State,
-                        base: File,
-                        rawConfig: LoadBuildConfiguration,
-                        globalBase: File,
-                        log: Logger): LoadBuildConfiguration = {
+    * build configuration.
+    *
+    * @param context The build context.
+    * @param previousConfig The recently created configuration.
+    * @return The loaded build configuration with information from `Global`.
+    */
+  def defaultWithGlobal(context: BuildContext,
+                        previousConfig: LoadBuildConfiguration): LoadBuildConfiguration = {
+    val state = context.state
+    val base = context.baseDirectory
+    val globalBase = context.globalDirectory
     val globalPluginsDir = getGlobalPluginsDirectory(state, globalBase)
-    val withGlobal = loadGlobal(state, base, globalPluginsDir, rawConfig)
+    val withGlobal = loadGlobal(state, base, globalPluginsDir, previousConfig)
     val globalSettings = configurationSources(getGlobalSettingsDirectory(state, globalBase))
     loadGlobalSettings(base, globalBase, globalSettings, withGlobal)
   }
