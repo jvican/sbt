@@ -131,33 +131,38 @@ private[sbt] object Load {
     loadGlobalSettings(base, globalBase, globalSettings, withGlobal)
   }
 
-  def loadGlobalSettings(base: File,
-                         globalBase: File,
-                         files: Seq[File],
-                         config: LoadBuildConfiguration): LoadBuildConfiguration = {
-    val compiled: ClassLoader => Seq[Setting[_]] =
+  /**
+   * Load settings defined in the global sbt files.
+   *
+   * @param base The base directory of the build.
+   * @param globalBase The global base directory.
+   * @param files The global sbt sources to compile and extract settings from.
+   * @param config The current loaded build configuration.
+   * @return The loaded build configuration with the aggregated global settings.
+   */
+  def loadGlobalSettings(
+      base: File,
+      globalBase: File,
+      files: Seq[File],
+      config: LoadBuildConfiguration
+  ): LoadBuildConfiguration = {
+    /* We have a potential leak of config-classes in the global directory right now.
+     * We need to find a way to clean these safely, or at least warn users about
+     * unused class files that could be cleaned when multiple sbt instances are not running. */
+    def globalSettingsBuilder(base: File, files: Seq[File], config: LoadBuildConfiguration) = {
+      val classpath = data(config.globalPluginClasspath)
+      val eval = mkEval(classpath, base, defaultEvalOptions)
+      val imports = BuildUtil.baseImports ++ config.detectedGlobalPlugins.imports
+      (loader: ClassLoader) =>
+        EvaluateConfigurations(eval, files, imports)(loader).settings
+    }
+    val projectLoader: ClassLoader => Seq[Setting[_]] =
       if (files.isEmpty || base == globalBase) const(Nil)
-      else buildGlobalSettings(globalBase, files, config)
-    config.copy(injectSettings = config.injectSettings.copy(projectLoaded = compiled))
+      else globalSettingsBuilder(globalBase, files, config)
+    val allGlobalSettings = config.injectSettings.copy(projectLoaded = projectLoader)
+    config.copy(injectSettings = allGlobalSettings)
   }
 
-  def buildGlobalSettings(base: File,
-                          files: Seq[File],
-                          config: LoadBuildConfiguration): ClassLoader => Seq[Setting[_]] = {
-    val eval = mkEval(data(config.globalPluginClasspath), base, defaultEvalOptions)
-
-    val imports = BuildUtil.baseImports ++
-      config.detectedGlobalPlugins.imports
-
-    loader =>
-      {
-        val loaded = EvaluateConfigurations(eval, files, imports)(loader)
-        // TODO - We have a potential leak of config-classes in the global directory right now.
-        // We need to find a way to clean these safely, or at least warn users about
-        // unused class files that could be cleaned when multiple sbt instances are not running.
-        loaded.settings
-      }
-  }
   def loadGlobal(state: State,
                  base: File,
                  global: File,
