@@ -50,12 +50,12 @@ private[sbt] object Load {
   type EvalGenerator = () => Eval
 
   /** Defines the initial build environment used to load the build configuration.
-    *
-    * @param state The read-only state.
-    * @param baseDirectory The base directory.
-    * @param globalDirectory The global directory.
-    * @param log The logger.
-    */
+   *
+   * @param state The read-only state.
+   * @param baseDirectory The base directory.
+   * @param globalDirectory The global directory.
+   * @param log The logger.
+   */
   private[sbt] case class BuildContext(state: State,
                                        baseDirectory: File,
                                        globalDirectory: File,
@@ -82,7 +82,8 @@ private[sbt] object Load {
     val base = baseDirectory.getCanonicalFile
     val context = BuildContext(state, base, globalBase, log)
     val initialConfig = timed("Load.defaultPreGlobal", log)(defaultPreGlobal(context))
-    val globalConfig = timed("Load.defaultWithGlobal", log)(defaultWithGlobal(context, initialConfig))
+    val globalConfig =
+      timed("Load.defaultWithGlobal", log)(defaultWithGlobal(context, initialConfig))
     val finalBuildConfiguration: LoadBuildConfiguration =
       if (isPlugin) enableSbtPlugin(globalConfig)
       else globalConfig.copy(extraBuilds = topLevelExtraBuilds)
@@ -90,10 +91,10 @@ private[sbt] object Load {
   }
 
   /** Loads the initial, raw build configuration from the basic build environment.
-    *
-    * @param context The build context.
-    * @return A raw build configuration.
-    */
+   *
+   * @param context The build context.
+   * @return A raw build configuration.
+   */
   def defaultPreGlobal(context: BuildContext): LoadBuildConfiguration = {
     val (state, log) = (context.state, context.log)
     val provider = state.configuration.provider
@@ -150,12 +151,12 @@ private[sbt] object Load {
       LogManager.settingsLogger(state) +: invariantGlobalSettings
 
   /** Load and aggregate global sbt configuration and settings to the loaded
-    * build configuration.
-    *
-    * @param context The build context.
-    * @param previousConfig The recently created configuration.
-    * @return The loaded build configuration with information from `Global`.
-    */
+   * build configuration.
+   *
+   * @param context The build context.
+   * @param previousConfig The recently created configuration.
+   * @return The loaded build configuration with information from `Global`.
+   */
   def defaultWithGlobal(context: BuildContext,
                         previousConfig: LoadBuildConfiguration): LoadBuildConfiguration = {
     def loadGlobal(globalPluginsDir: File): LoadBuildConfiguration = {
@@ -661,93 +662,100 @@ private[sbt] object Load {
   def noConfiguration(uri: URI, id: String, conf: String) =
     sys.error(s"No configuration '$conf' defined in project '$id' in '$uri'")
 
-  // Called from builtinLoader
-  def loadUnit(uri: URI, localBase: File, s: State, config: LoadBuildConfiguration): BuildUnit =
+  /**
+   *
+   * @param uri
+   * @param localBase
+   * @param s
+   * @param config
+   * @return
+   */
+  def loadUnit(uri: URI, localBase: File, s: State, config: LoadBuildConfiguration): BuildUnit = {
     timed(s"Load.loadUnit($uri, ...)", config.log) {
       val log = config.log
-      val normBase = localBase.getCanonicalFile
-      val defDir = projectStandard(normBase)
+      val normalizedBase = localBase.getCanonicalFile
+      val projectDirectory = projectStandard(normalizedBase)
 
-      val plugs = timed("Load.loadUnit: plugins", log) {
-        plugins(defDir, s, config.copy(pluginManagement = config.pluginManagement.forPlugin))
-      }
-      val defsScala = timed("Load.loadUnit: defsScala", log) {
-        plugs.detected.builds.values
-      }
-      val buildLevelExtraProjects = plugs.detected.autoPlugins flatMap { d =>
-        d.value.extraProjects map { _.setProjectOrigin(ProjectOrigin.ExtraProject) }
+      // Load all project-defined plugins
+      val plugins = timed("Load.loadUnit: plugins", log) {
+        val pluginManagement = config.pluginManagement.forPlugin
+        val pluginConfig = config.copy(pluginManagement = pluginManagement)
+        Load.plugins(projectDirectory, s, pluginConfig)
       }
 
-      // NOTE - because we create an eval here, we need a clean-eval later for this URI.
-      lazy val eval = timed("Load.loadUnit: mkEval", log) {
-        mkEval(plugs.classpath, defDir, plugs.pluginData.scalacOptions)
-      }
-      val initialProjects = defsScala.flatMap(b => projectsFromBuild(b, normBase)) ++ buildLevelExtraProjects
+      // Identify all the projects from the detected builds and auto plugins
+      val scalaDefinitions = plugins.detected.builds.values
+      val buildLevelExtraProjects = plugins.detected.autoPlugins.flatMap(d =>
+        d.value.extraProjects.map(_.setProjectOrigin(ProjectOrigin.ExtraProject)))
+      val scalaProjects = scalaDefinitions.flatMap(projectsFromBuild(_, normalizedBase))
+      val initialProjects = scalaProjects ++ buildLevelExtraProjects
 
-      val hasRootAlreadyDefined = defsScala.exists(_.rootProject.isDefined)
+      // Create a lazy eval for the given project directory
+      lazy val eval = timed("Load.loadUnit: mkEval", log)(
+        mkEval(plugins.classpath, projectDirectory, plugins.pluginData.scalacOptions))
 
       val memoSettings = new mutable.HashMap[File, LoadedSbtFile]
-      def loadProjects(ps: Seq[Project], createRoot: Boolean) = {
-        val result = loadTransitive(ps,
-                                    normBase,
-                                    plugs,
-                                    () => eval,
-                                    config.injectSettings,
-                                    Nil,
-                                    memoSettings,
-                                    config.log,
-                                    createRoot,
-                                    uri,
-                                    config.pluginManagement.context,
-                                    Nil)
-        result
+      def loadProjects(ps: Seq[Project], createRoot: Boolean): LoadedProjects = {
+        loadTransitive(ps,
+                       normalizedBase,
+                       plugins,
+                       () => eval,
+                       config.injectSettings,
+                       Nil,
+                       memoSettings,
+                       config.log,
+                       createRoot,
+                       uri,
+                       config.pluginManagement.context,
+                       Nil)
       }
-      val loadedProjectsRaw = timed("Load.loadUnit: loadedProjectsRaw", log) {
-        loadProjects(initialProjects, !hasRootAlreadyDefined)
-      }
-      // TODO - As of sbt 0.13.6 we should always have a default root project from
+
+      val hasRootAlreadyDefined = scalaDefinitions.exists(_.rootProject.isDefined)
+      val loadedProjectsRaw = timed("Load.loadUnit: loadedProjectsRaw", log)(
+        loadProjects(initialProjects, !hasRootAlreadyDefined))
+      val rawProjects = loadedProjectsRaw.projects
+      val rawConfigClassFiles = loadedProjectsRaw.generatedConfigClassFiles
+      val hasRoot: Boolean = hasRootAlreadyDefined ||
+        rawProjects.exists(_.base == normalizedBase)
+
+      // As of sbt 0.13.6, sbt always has a default root project
       //        here on, so the autogenerated build aggregated can be removed from this code. ( I think)
       // We may actually want to move it back here and have different flags in loadTransitive...
-      val hasRoot = loadedProjectsRaw.projects.exists(_.base == normBase) || defsScala.exists(
-        _.rootProject.isDefined)
-      val (loadedProjects, defaultBuildIfNone, keepClassFiles) =
-        if (hasRoot)
-          (loadedProjectsRaw.projects,
-           BuildDef.defaultEmpty,
-           loadedProjectsRaw.generatedConfigClassFiles)
+      val (loadedProjects, defaultBuildIfNone, keepClassFiles) = {
+        if (hasRoot) (rawProjects, BuildDef.defaultEmpty, rawConfigClassFiles)
         else {
-          val existingIDs = loadedProjectsRaw.projects.map(_.id)
-          val refs = existingIDs.map(id => ProjectRef(uri, id))
-          val defaultID = autoID(normBase, config.pluginManagement.context, existingIDs)
-          val b = BuildDef.defaultAggregated(defaultID, refs)
-          val defaultProjects = timed("Load.loadUnit: defaultProjects", log) {
-            loadProjects(projectsFromBuild(b, normBase), false)
-          }
-          (defaultProjects.projects ++ loadedProjectsRaw.projects,
-           b,
-           defaultProjects.generatedConfigClassFiles ++ loadedProjectsRaw.generatedConfigClassFiles)
+          val projectIds = rawProjects.map(_.id)
+          val projectRefs = projectIds.map(id => ProjectRef(uri, id))
+          val contextPlugin = config.pluginManagement.context
+          val defaultID = autoID(normalizedBase, contextPlugin, projectIds)
+          val buildDef = BuildDef.defaultAggregated(defaultID, projectRefs)
+          val defaultProjects = timed("Load.loadUnit: defaultProjects", log)(
+            loadProjects(projectsFromBuild(buildDef, normalizedBase), false))
+          val allProjects = defaultProjects.projects ++ rawProjects
+          val classFiles = defaultProjects.generatedConfigClassFiles ++ rawConfigClassFiles
+          (allProjects, buildDef, classFiles)
         }
-      // Now we clean stale class files.
-      // TODO - this may cause issues with multiple sbt clients, but that should be deprecated pending sbt-server anyway
-      timed("Load.loadUnit: cleanEvalClasses", log) {
-        cleanEvalClasses(defDir, keepClassFiles)
       }
-      val defs = if (defsScala.isEmpty) defaultBuildIfNone :: Nil else defsScala
+
+      // Clean stale class files generated from eval -- should be
+      timed("Load.loadUnit: cleanEvalClasses", log)(
+        cleanEvalClasses(projectDirectory, keepClassFiles))
+
       // HERE we pull out the defined vals from memoSettings and unify them all so
       // we can use them later.
-      val valDefinitions = memoSettings.values.foldLeft(DefinedSbtValues.empty) {
-        (prev, sbtFile) =>
-          prev.zip(sbtFile.definitions)
-      }
-      val loadedDefs = new LoadedDefinitions(defDir,
+      val valDefinitions = memoSettings.values.foldLeft(DefinedSbtValues.empty)((prev, sbtFile) =>
+        prev.zip(sbtFile.definitions))
+      val defs = if (scalaDefinitions.isEmpty) defaultBuildIfNone :: Nil else scalaDefinitions
+      val loadedDefs = new LoadedDefinitions(projectDirectory,
                                              Nil,
-                                             plugs.loader,
+                                             plugins.loader,
                                              defs,
                                              loadedProjects,
-                                             plugs.detected.builds.names,
+                                             plugins.detected.builds.names,
                                              valDefinitions)
-      new BuildUnit(uri, normBase, loadedDefs, plugs)
+      new BuildUnit(uri, normalizedBase, loadedDefs, plugins)
     }
+  }
 
   private[this] def autoID(localBase: File,
                            context: PluginManagement.Context,
@@ -1140,14 +1148,14 @@ private[sbt] object Load {
     }
 
   /** Returns [[LoadedPlugins]] from the current build information.
-    *
-    * If the current dir does not have any target directory, no plugins are loaded.
-    *
-    * @param dir The build directory.
-    * @param s The given state.
-    * @param config The configuration of the loaded build.
-    * @return An instance of [[LoadedPlugins]].
-    */
+   *
+   * If the current dir does not have any target directory, no plugins are loaded.
+   *
+   * @param dir The build directory.
+   * @param s The given state.
+   * @param config The configuration of the loaded build.
+   * @return An instance of [[LoadedPlugins]].
+   */
   def plugins(dir: File, s: State, config: LoadBuildConfiguration): LoadedPlugins = {
     import sbt.io.syntax.singleFileFinder
     def hasDefinition(dir: File) = (dir * -GlobFilter(DefaultTargetName)).get.nonEmpty
