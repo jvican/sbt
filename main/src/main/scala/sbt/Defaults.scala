@@ -1872,7 +1872,9 @@ object Classpaths {
           s.log
         )
       }
-    } tag (Tags.Update, Tags.Network)).value
+    } tag (Tags.Update, Tags.Network)).value,
+    dependencyLockFile := baseDirectory.value / "dependency-lock.json",
+    generateDependencyLock := generateLockFile0.value
   )
 
   val jvmBaseSettings: Seq[Setting[_]] = Seq(
@@ -2096,6 +2098,25 @@ object Classpaths {
       }
   }
 
+  def updateInputs0: Initialize[Task[LibraryManagement.UpdateInputs]] = Def.task {
+    val updateConf = {
+      // Log captures log messages at all levels, except ivy logs.
+      // Use full level when debug is enabled so that ivy logs are shown.
+      import UpdateLogging.{ Full, DownloadOnly, Default }
+      val conf = updateConfiguration.value
+      val maybeUpdateLevel = (logLevel in update).?.value
+      maybeUpdateLevel.orElse(state.value.get(logLevel.key)) match {
+        case Some(Level.Debug) if conf.logging == Default => conf.withLogging(logging = Full)
+        case Some(_) if conf.logging == Default           => conf.withLogging(logging = DownloadOnly)
+        case _                                            => conf
+      }
+    }
+    val module = ivyModule.value
+    val ivyConfig = module.owner.configuration
+    val settings = module.moduleSettings
+    ivyConfig :+: settings :+: updateConf :+: HNil
+  }
+
   def updateTask: Initialize[Task[UpdateReport]] = Def.task {
     val s = streams.value
     val cacheDirectory = streams.value.cacheDirectory
@@ -2124,20 +2145,6 @@ object Classpaths {
       }
     }
 
-    val state0 = state.value
-    val updateConf = {
-      // Log captures log messages at all levels, except ivy logs.
-      // Use full level when debug is enabled so that ivy logs are shown.
-      import UpdateLogging.{ Full, DownloadOnly, Default }
-      val conf = updateConfiguration.value
-      val maybeUpdateLevel = (logLevel in update).?.value
-      maybeUpdateLevel.orElse(state0.get(logLevel.key)) match {
-        case Some(Level.Debug) if conf.logging == Default => conf.withLogging(logging = Full)
-        case Some(_) if conf.logging == Default           => conf.withLogging(logging = DownloadOnly)
-        case _                                            => conf
-      }
-    }
-
     val evictionOptions = Def.taskDyn {
       if (executionRoots.value.exists(_.key == evicted.key))
         Def.task(EvictionWarningOptions.empty)
@@ -2146,21 +2153,54 @@ object Classpaths {
 
     LibraryManagement.cachedUpdate(
       s.cacheStoreFactory.sub(updateCacheName.value),
-      Reference.display(thisProjectRef.value),
+      dependencyLockFile.value,
+      thisProjectRef.value,
+      updateInputs0.value,
       ivyModule.value,
-      updateConf,
       substituteScalaFiles(scalaOrganization.value, _)(providedScalaJars),
       skip = (skip in update).value,
       force = shouldForce,
       depsUpdated = transitiveUpdate.value.exists(!_.stats.cached),
       uwConfig = (unresolvedWarningConfiguration in update).value,
-      logicalClock = LogicalClock(state0.hashCode),
+      logicalClock = LogicalClock(state.value.hashCode),
       depDir = Some(dependencyCacheDirectory.value),
       ewo = evictionOptions,
       mavenStyle = publishMavenStyle.value,
       compatWarning = compatibilityWarningOptions.value,
       log = s.log
     )
+  }
+
+  /** Creates a dependency lock file from an [[UpdateReport]].
+   *
+   * @return Whether the dependency lock file was generated or not.
+   */
+  private[sbt] def generateLockFile0: Initialize[Task[Boolean]] = Def.taskDyn {
+    val logger = streams.value.log
+    val lockFile = dependencyLockFile.value
+    val existsLockFile = lockFile.exists()
+    val updateInputs = updateInputs0.value
+    val lockStore = LibraryManagement.createLockFileStore(lockFile)
+    val currentLockFile = LibraryManagement.getUpToDateLockFile(updateInputs, lockStore, logger)
+
+    currentLockFile match {
+      case Some(upToDateContents) =>
+        Def.task {
+          val sameHash = upToDateContents.hash
+          logger.debug(s"The hash of the update inputs is the same: $sameHash.")
+          lockStore.close()
+          false
+        }
+      case None =>
+        Def.task {
+          val newModules = update.value.allModules
+          val newInputsHash = LibraryManagement.UpdateInputs.hash(updateInputs)
+          val newContents = LibraryManagement.LockFileContent.apply(newInputsHash, newModules)
+          LibraryManagement.writeToLockFile(newContents, lockStore, existsLockFile, logger)
+          lockStore.close()
+          true
+        }
+    }
   }
 
   /** Maps module ids (lib dependencies) to positions of the sbt files where they were defined.

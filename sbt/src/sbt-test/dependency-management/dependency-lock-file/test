@@ -1,0 +1,25 @@
+# Start from a fresh slate
+> clean
+
+# The first one will carry out an update
+> checkDependencyLockFileIsUpdated
+> checkDependencyLockFileIsTheSame
+
+# Check that the dependency lock file is not cleaned
+> clean
+$ exists dependency-lock.json
+
+# Check that update works with the dependency lock file
+> update
+
+# Check that update generates a dependency lock file (this update will be cached)
+$ delete dependency-lock.json
+> update
+$ exists dependency-lock.json
+
+# Check that when inputs are different, we get a new dependency lock file
+$ copy-file dependency-lock.json previous-dependency-lock.json
+$ copy-file changes/new-library-dependency.sbt.disabled new-library-dependency.sbt
+> reload
+> update
+-$ must-mirror dependency-lock.json previous-dependency-lock.json
