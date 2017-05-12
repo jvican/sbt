@@ -49,21 +49,107 @@ object LibraryManagement {
   private def keepEssentialData(modules: Seq[ModuleID]): Seq[ModuleID] =
     modules.map(module => ModuleID(module.organization, module.name, module.revision))
 
-  private[sbt] def injectLockFileContents(lockFileFormat: LockFileContent,
-                                          module: IvySbt#Module,
-                                          logger: Logger): IvySbt#Module = {
-    val newModuleSettings = module.moduleSettings match {
+  private[sbt] def injectLockFile(lockFile: LockFileContent,
+                                  module: IvySbt#Module,
+                                  updateConfiguration: UpdateConfiguration,
+                                  logger: Logger): Option[IvySbt#Module] = {
+    module.moduleSettings match {
       case i: InlineConfiguration =>
-        logger.info("The dependency lock file is injecting all the explicit dependencies.")
-        val explicitDependencies = lockFileFormat.resolvedDependencies
-        logger.info(list(keepEssentialData(explicitDependencies), DepSep))
-        i.withDependencies(explicitDependencies)
-      case configurationFromFile =>
-        logger.warn("Use of lock file for ivy or pom files is not yet supported. File an issue.")
-        configurationFromFile
+        i.ivyScala.map { ivyScala =>
+          val bin = ivyScala.scalaBinaryVersion
+          logger.verbose(s"The dependency lock file injects the $bin explicit dependencies.")
+          val explicitDependencies = lockFile.explicitDependencies
+          logger.verbose(list(keepEssentialData(explicitDependencies), DepSep))
+          val newModuleSettings = i.withDependencies(explicitDependencies)
+          val sbtIvy = module.owner
+          new sbtIvy.Module(newModuleSettings)
+        }
+      case _ =>
+        // We cannot inject the explicit dependencies in xml files -- use inline instead
+        logger.warn("The lock file is unsupported for ivy file and pom file configuration.")
+        None
     }
-    val sbtIvy = module.owner
-    new sbtIvy.Module(newModuleSettings)
+  }
+
+  private type IvyModule = IvySbt#Module
+
+  private[sbt] def update(
+      dependencyLockFile: File,
+      projectRef: ProjectRef,
+      updateInputs: UpdateInputs,
+      mod0: IvyModule,
+      transform: UpdateReport => UpdateReport,
+      uwConfig: UnresolvedWarningConfiguration,
+      logicalClock: LogicalClock,
+      depDir: Option[File],
+      ewo: EvictionWarningOptions,
+      mavenStyle: Boolean,
+      compatWarning: CompatibilityWarningOptions,
+      log: Logger
+  ): UpdateReport = {
+    import sbt.util.ShowLines._
+    val updateConfig0 = updateInputs.tail.tail.head
+
+    // Check if it exists before creating the file store
+    val existsLockFile = dependencyLockFile.exists()
+    val lockStore = createLockFileStore(dependencyLockFile)
+    val maybeLockFile = getUpToDateLockFile(updateInputs, lockStore, log)
+    val injectedMod = maybeLockFile.flatMap(injectLockFile(_, mod0, updateConfig0, log))
+    val module = injectedMod.getOrElse(mod0)
+    val existsUsableLockFile = maybeLockFile.isDefined
+
+    val label = Reference.display(projectRef)
+    log.info(s"Updating $label...")
+    val maybeFrozenUpdateConfig = maybeLockFile.map { lockContents =>
+      val baseDirectory = new java.io.File(projectRef.build)
+      val absolutePath = dependencyLockFile.getAbsolutePath
+      val relativePath = new sbt.io.RichFile(dependencyLockFile).relativeTo(baseDirectory)
+      val lockFileLocation = relativePath.map(r => s"{.}/$r").getOrElse(absolutePath)
+      log.info(s"$Step Using lock file at $lockFileLocation.")
+
+      val transitiveModules = lockContents.explicitDependencies.filter(_.isTransitive)
+      log.warn("Your dependency lock file is not deterministic because of transitive module(s):")
+      log.warn(list(keepEssentialData(transitiveModules), WarnDepSep))
+
+      // Frozen mode == no transitive dependencies + no deps changed checks
+      if (transitiveModules.nonEmpty) updateConfig0
+      else updateConfig0.withFrozen(true)
+    }
+
+    val updateConfig = maybeFrozenUpdateConfig.getOrElse(updateConfig0)
+    val reportOrUnresolved: Either[UnresolvedWarning, UpdateReport] =
+      IvyActions.updateEither(module, updateConfig, uwConfig, logicalClock, depDir, log)
+
+    val report = reportOrUnresolved match {
+      case Right(report0) => report0
+      case Left(unresolvedWarning) =>
+        lockStore.close() // Don't leak resources
+        unresolvedWarning.lines.foreach(log.warn(_))
+        throw unresolvedWarning.resolveException
+    }
+
+    val finalReport = transform(report)
+    if (!existsUsableLockFile) {
+      val resolvedModules = finalReport.allModules
+      if (resolvedModules.nonEmpty) {
+        val contents = LockFileContent(updateInputs, resolvedModules)
+        writeToLockFile(contents, lockStore, existsLockFile, log)
+      }
+    }
+
+    val stats = finalReport.stats
+    val resolveTime = s"${stats.resolveTime}ms"
+    val downloadTime = s"${stats.downloadTime}ms"
+    log.info(s"$Step Updated dependencies (resolution: $resolveTime, download: $downloadTime).")
+
+    // Warn of any eviction and compatibility warnings
+    val ew = EvictionWarning(module, ewo, finalReport, log)
+    ew.lines.foreach(log.warn(_))
+    ew.infoAllTheThings.foreach(log.info(_))
+    CompatibilityWarning.run(compatWarning, module, mavenStyle, log)
+
+    lockStore.close()
+    finalReport
   }
 
   private[sbt] def cachedUpdate(
@@ -87,62 +173,10 @@ object LibraryManagement {
 
     /* Resolve the module settings from the inputs. */
     def resolve(inputs: UpdateInputs): UpdateReport = {
-      import sbt.util.ShowLines._
-      val updateConfig = inputs.tail.tail.head
-      // Check if it exists before creating the file store
-      val existsLockFile = dependencyLockFile.exists()
-      val lockStore = createLockFileStore(dependencyLockFile)
-      val maybeLockFile = getUpToDateLockFile(inputs, lockStore, log)
-      val module = maybeLockFile.map(injectLockFileContents(_, mod0, log)).getOrElse(mod0)
-      val existsUsableLockFile = maybeLockFile.isDefined
-
-      val label = Reference.display(projectRef)
-      log.info(s"Updating $label...")
-      maybeLockFile.foreach { lockContents =>
-        val baseDirectory = new java.io.File(projectRef.build)
-        val absolutePath = dependencyLockFile.getAbsolutePath
-        val relativePath = new sbt.io.RichFile(dependencyLockFile).relativeTo(baseDirectory)
-        val lockFileLocation = relativePath.map(r => s"{.}/$r").getOrElse(absolutePath)
-        log.info(s"$Step Using lock file at $lockFileLocation.")
-
-        val transitiveModules = lockContents.resolvedDependencies.filter(_.isTransitive)
-        log.warn("Your dependency lock file is not deterministic because of transitive module(s):")
-        log.warn(list(keepEssentialData(transitiveModules), WarnDepSep))
-      }
-
-      val reportOrUnresolved: Either[UnresolvedWarning, UpdateReport] =
-        IvyActions.updateEither(module, updateConfig, uwConfig, logicalClock, depDir, log)
-
-      val report = reportOrUnresolved match {
-        case Right(report0) => report0
-        case Left(unresolvedWarning) =>
-          lockStore.close() // Don't leak resources
-          unresolvedWarning.lines.foreach(log.warn(_))
-          throw unresolvedWarning.resolveException
-      }
-
-      val finalReport = transform(report)
-      if (!existsUsableLockFile) {
-        val resolvedModules = finalReport.allModules
-        if (resolvedModules.nonEmpty) {
-          val contents = LockFileContent(inputs, resolvedModules)
-          writeToLockFile(contents, lockStore, existsLockFile, log)
-        }
-      }
-
-      val stats = finalReport.stats
-      val resolveTime = s"${stats.resolveTime}ms"
-      val downloadTime = s"${stats.downloadTime}ms"
-      log.info(s"$Step Updated dependencies (resolution: $resolveTime, download: $downloadTime).")
-
-      // Warn of any eviction and compatibility warnings
-      val ew = EvictionWarning(module, ewo, finalReport, log)
-      ew.lines.foreach(log.warn(_))
-      ew.infoAllTheThings.foreach(log.info(_))
-      CompatibilityWarning.run(compatWarning, module, mavenStyle, log)
-
-      lockStore.close()
-      finalReport
+      // format: off
+      update(dependencyLockFile, projectRef, updateInputs, mod0, transform, uwConfig,
+        logicalClock, depDir, ewo, mavenStyle, compatWarning, log)
+      // format: on
     }
 
     /* Check if a update report is still up to date or we must resolve again. */
@@ -229,12 +263,12 @@ object LibraryManagement {
   private[sbt] final case class LockFileContent(hash: String, dependencies: Seq[ModuleID]) {
 
     /** The resolved intransitive dependencies for deterministic results. */
-    lazy val resolvedDependencies: Vector[ModuleID] = {
+    lazy val explicitDependencies: Vector[ModuleID] = {
       // Cross versions are already disabled since they have already been resolved
       dependencies.map { dep =>
         // If you want this not to be intransitive, set `isChanging` in your dependency
         if (dep.isChanging || dep.revision.endsWith("-SNAPSHOT")) dep
-        else dep.withIsTransitive(false)
+        else dep.withIsTransitive(false).withIsForce(true)
       }.toVector
     }
   }
@@ -287,5 +321,4 @@ object LibraryManagement {
 
   private[this] def fileUptodate(file: File, stamps: Map[File, Long]): Boolean =
     stamps.get(file).forall(_ == file.lastModified)
-
 }

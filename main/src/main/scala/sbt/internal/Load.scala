@@ -75,7 +75,6 @@ private[sbt] object Load {
     val stagingDirectory = getStagingDirectory(state, globalBase).getCanonicalFile
     val loader = getClass.getClassLoader
     val classpath = Attributed.blankSeq(provider.mainClasspath ++ scalaProvider.jars)
-    val localOnly = false
     val lock = None
     val checksums = Vector.empty
     val ivyPaths = IvyPaths(baseDirectory, bootIvyHome(state.configuration))
@@ -83,7 +82,6 @@ private[sbt] object Load {
                                                       Resolver.withDefaultResolvers(Nil).toVector,
                                                       Vector.empty,
                                                       Vector.empty,
-                                                      localOnly,
                                                       lock,
                                                       checksums,
                                                       None,

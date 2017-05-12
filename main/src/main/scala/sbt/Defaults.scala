@@ -1737,10 +1737,13 @@ object Classpaths {
       // Tell the UpdateConfiguration which artifact types are special (for sources and javadocs)
       val specialArtifactTypes = sourceArtifactTypes.value union docArtifactTypes.value
       // By default, to retrieve all types *but* these (it's assumed that everything else is binary/resource)
+      // TODO: Add a key to set up the frozen mode only when the dependency lock file is enabled
       UpdateConfiguration(retrieveConfiguration.value,
                           false,
                           ivyLoggingLevel.value,
-                          ArtifactTypeFilter.forbid(specialArtifactTypes))
+                          ArtifactTypeFilter.forbid(specialArtifactTypes),
+                          offline.value,
+                          false)
     },
     retrieveConfiguration := {
       if (retrieveManaged.value)
@@ -1969,7 +1972,6 @@ object Classpaths {
           externalResolvers.value.toVector,
           Vector.empty,
           Vector.empty,
-          offline.value,
           Option(lock(appConfiguration.value)),
           checksums.value.toVector,
           Some(target.value / "resolution-cache"),
@@ -2431,7 +2433,6 @@ object Classpaths {
         rs,
         other,
         moduleConfigurations.value.toVector,
-        offline.value,
         Option(lock(appConfiguration.value)),
         (checksums in update).value.toVector,
         Some(resCacheDir),

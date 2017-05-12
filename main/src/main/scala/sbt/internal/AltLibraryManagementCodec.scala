@@ -37,11 +37,9 @@ object AltLibraryManagementCodec extends LibraryManagementCodec {
                  RawRepository]
 
   type InlineIvyHL = (IvyPaths :+: Vector[Resolver] :+: Vector[Resolver] :+: Vector[
-    ModuleConfiguration] :+: Boolean :+: Vector[String] :+: HNil)
-  def inlineIvyToHL(i: InlineIvyConfiguration): InlineIvyHL = (
-    i.paths :+: i.resolvers :+: i.otherResolvers :+: i.moduleConfigurations :+: i.localOnly
-      :+: i.checksums :+: HNil
-  )
+    ModuleConfiguration] :+: Vector[String] :+: HNil)
+  def inlineIvyToHL(i: InlineIvyConfiguration): InlineIvyHL =
+    i.paths :+: i.resolvers :+: i.otherResolvers :+: i.moduleConfigurations :+: i.checksums :+: HNil
 
   type ExternalIvyHL = PlainFileInfo :+: Array[Byte] :+: HNil
   def externalIvyToHL(e: ExternalIvyConfiguration): ExternalIvyHL =
@@ -50,8 +48,8 @@ object AltLibraryManagementCodec extends LibraryManagementCodec {
   // Redefine to use a subset of properties, that are serialisable
   override lazy implicit val InlineIvyConfigurationFormat: JsonFormat[InlineIvyConfiguration] = {
     def hlToInlineIvy(i: InlineIvyHL): InlineIvyConfiguration = {
-      val (paths :+: resolvers :+: otherResolvers :+: moduleConfigurations :+: localOnly
-        :+: checksums :+: HNil) = i
+      val (paths :+: resolvers :+: otherResolvers :+: moduleConfigurations :+: checksums :+: HNil) =
+        i
       InlineIvyConfiguration(None,
                              IO.createTemporaryDirectory,
                              NullLogger,
@@ -60,7 +58,6 @@ object AltLibraryManagementCodec extends LibraryManagementCodec {
                              resolvers,
                              otherResolvers,
                              moduleConfigurations,
-                             localOnly,
                              checksums,
                              None)
     }
