@@ -273,6 +273,8 @@ object Defaults extends BuildCommon {
   // TODO: This should be on the new default settings for a project.
   def projectCore: Seq[Setting[_]] = Seq(
     name := thisProject.value.id,
+    baseDirectory := thisProject.value.base,
+    target := baseDirectory.value / "target",
     logManager := LogManager.defaults(extraLoggers.value, StandardMain.console),
     onLoadMessage := (onLoadMessage or
       Def.setting {
@@ -280,8 +282,6 @@ object Defaults extends BuildCommon {
       }).value
   )
   def paths = Seq(
-    baseDirectory := thisProject.value.base,
-    target := baseDirectory.value / "target",
     historyPath := (historyPath or target(t => Option(t / ".history"))).value,
     sourceDirectory := baseDirectory.value / "src",
     sourceManaged := crossTarget.value / "src_managed",
@@ -1468,11 +1468,8 @@ object Defaults extends BuildCommon {
 
   // These are project level settings that MUST be on every project.
   lazy val coreDefaultSettings: Seq[Setting[_]] =
-    projectCore ++ disableAggregation ++ Seq(
-      // Missing but core settings
-      baseDirectory := thisProject.value.base,
-      target := baseDirectory.value / "target"
-    )
+    projectCore ++ disableAggregation
+  
   // build.sbt is treated a Scala source of metabuild, so to enable deprecation flag on build.sbt we set the option here.
   lazy val deprecationSettings: Seq[Setting[_]] =
     inConfig(Compile)(
