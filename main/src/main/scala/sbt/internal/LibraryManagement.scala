@@ -6,6 +6,7 @@ import sbt.{ ProjectRef, Reference }
 import sbt.internal.librarymanagement._
 import sbt.internal.util.{ ConsoleAppender, ConsoleLogger, HNil }
 import sbt.internal.util.Types.:+:
+import sbt.io.Hash
 import sbt.librarymanagement._
 import sbt.librarymanagement.syntax._
 import sbt.util.CacheImplicits._
@@ -25,23 +26,17 @@ object LibraryManagement {
   private[sbt] object UpdateInputs {
     def apply(updateConfiguration: UpdateConfiguration, module: IvySbt#Module): UpdateInputs =
       module.owner.configuration :+: module.moduleSettings :+: updateConfiguration :+: HNil
+  }
 
-    def hash(updateInputs: UpdateInputs, logger: Logger = fallbackLogger): String = {
-      import sbt.io.Hash
-      import AltLibraryManagementCodec._
-      updateInputs.tail.head match {
-        case inlineConf: InlineConfiguration =>
-          // We are using the serialized contents to hash rather than object identity
-          val tryHash = Converter.toJson(inlineConf).map(ast => Hash(jsonPrettyPrinter.to(ast)))
-          tryHash.fold(
-            error => sys.error(s"Failed to hash the resolution inputs: ${error.getMessage}."),
-            jsonContent => Hash.toHex(Hash(jsonContent)).take(40) // sha-1 format
-          )
-        case otherConfiguration =>
-          logger.error(UnsupportedModuleSettings)
-          sys.error("Impossible to hash a configuration that is not inline. Abort.")
-      }
-    }
+  private def hashModules(modules: Vector[ModuleID]): String = {
+    import sbt.io.Hash
+    import AltLibraryManagementCodec._
+    // We are using the serialized contents to hash rather than object identity
+    val tryHash = Converter.toJson(modules).map(ast => Hash(jsonPrettyPrinter.to(ast)))
+    tryHash.fold(
+      error => sys.error(s"Failed to hash the resolution inputs: ${error.getMessage}."),
+      jsonContent => Hash.toHex(Hash(jsonContent)).take(40) // sha-1 format
+    )
   }
 
   import scala.io.AnsiColor
@@ -56,7 +51,7 @@ object LibraryManagement {
 
   /** Clean the configurations to print modules to users, they are too verbose. */
   private def keepEssentialData(modules: Seq[ModuleID]): Seq[ModuleID] =
-    modules.map(module => ModuleID(module.organization, module.name, module.revision))
+    modules.map(m => ModuleID(m.organization, m.name, m.revision).withChecksum(m.checksum))
 
   private final val UnsupportedModuleSettings: String =
     "The lock file is unsupported for ivy file and pom file configuration."
@@ -77,22 +72,22 @@ object LibraryManagement {
   ): Option[(IvyModule, Vector[ModuleID])] = {
     module.moduleSettings match {
       case i: InlineConfiguration =>
-        i.ivyScala.map { ivyScala =>
-          // Use the full version because deps can change between minor Scala versions
-          val scalaV = ivyScala.scalaFullVersion
-          logger.verbose(s"Using the locked dependencies for the scala version $scalaV.")
-          val explicitDependencies = lockFile.explicitDependencies
-          val dependenciesForScala = explicitDependencies.getOrElse(scalaV, MissingDepsFor(scalaV))
-          val explicitModules = dependenciesForScala.map(_.module)
-
-          logger.verbose(list(keepEssentialData(explicitModules), DepSep))
+        val seedDependencies = hashModules(i.dependencies)
+        val previousSeed = lockFile.seed
+        if (seedDependencies == previousSeed) {
+          val explicitModules = lockFile.explicitDependencies
+          logger.debug("The following locked dependencies have been injected to the Ivy module:")
+          logger.debug(list(keepEssentialData(explicitModules), DepSep))
           val newModuleSettings = i.withDependencies(explicitModules)
           val sbtIvy = module.owner
-          new sbtIvy.Module(newModuleSettings) -> explicitModules
+          Some(new sbtIvy.Module(newModuleSettings) -> explicitModules)
+        } else {
+          logger.debug("The lock file contents are not injected to the Ivy module.")
+          None
         }
       case _ =>
         // We cannot inject the explicit dependencies in xml files -- use inline instead
-        logger.warn("The lock file is unsupported for ivy file and pom file configuration.")
+        logger.warn(UnsupportedModuleSettings)
         None
     }
   }
@@ -117,10 +112,11 @@ object LibraryManagement {
     // Check if it exists before creating the file store
     val existsLockFile = dependencyLockFile.exists()
     val lockStore = createLockFileStore(dependencyLockFile)
-    val maybeLockFile = getUpToDateLockFile(updateInputs, lockStore, log)
+    val maybeLockFile = readFromLockFile(lockStore)
     val usingLockFile = maybeLockFile.flatMap(useLockFile(_, module0, updateConfig0, log))
     val module = usingLockFile.map(_._1).getOrElse(module0)
     val existsUsableLockFile = maybeLockFile.isDefined
+    val ivyConfiguration = updateInputs.head
 
     val label = Reference.display(projectRef)
     log.info(s"Updating $label...")
@@ -156,9 +152,15 @@ object LibraryManagement {
 
     val finalReport = transform(report)
     if (!existsUsableLockFile) {
+      val seedDependencies = module.moduleSettings match {
+        case i: InlineConfiguration => i.dependencies
+        // TODO(jvican): Don't use sys.error for this.
+        case _ => sys.error(UnsupportedModuleSettings)
+      }
+
       val resolvedModules = finalReport.allModules
       if (resolvedModules.nonEmpty) {
-        val contents = LockFileContent(updateInputs, resolvedModules)
+        val contents = LockFileContent(seedDependencies, resolvedModules)
         writeToLockFile(contents, lockStore, existsLockFile, log)
       }
     }
@@ -281,65 +283,44 @@ object LibraryManagement {
   private final val jsonPrettyPrinter: sjsonnew.IsoString[JValue] =
     sjsonnew.IsoString.iso(LockPrettyPrinter.apply, Parser.parseUnsafe)
 
-  private[sbt] case class ResolvedModule(module: ModuleID, artifacts: Vector[ArtifactInfo])
-  private[sbt] case class ArtifactInfo(artifact: Artifact, checksum: String)
-
-  private[sbt] type ScalaBinaryVersion = String
-  private[sbt] type ScalaVersionDependencies = Map[ScalaBinaryVersion, Vector[ResolvedModule]]
-
   /** Represents the format used to lock all the dependencies.
    *
    * @param version The version of the used dependency lock file.
-   * @param hash The hash of the library dependencies that generated the lock file.
+   * @param seed The hash of the library dependencies that generated the lock file.
    * @param dependencies The resolved modules product of the resolution of [[UpdateInputs]].
    */
   private[sbt] final case class LockFileContent(version: String,
-                                                hash: String,
-                                                dependencies: ScalaVersionDependencies) {
+                                                seed: String,
+                                                dependencies: Vector[ModuleID]) {
 
     /** The resolved intransitive dependencies for deterministic results. */
-    lazy val explicitDependencies: Map[ScalaBinaryVersion, Vector[ResolvedModule]] = {
+    lazy val explicitDependencies: Vector[ModuleID] = {
       // Cross versions are already disabled since they have already been resolved
-      dependencies.map {
-        case (scalaVersion, resolvedModules) =>
-          val modifiedDependencies = resolvedModules.map { dep =>
-            val module = dep.module
-            // If you want this not to be intransitive, set `isChanging` in your dependency
-            if (module.isChanging || module.revision.endsWith("-SNAPSHOT")) dep
-            else dep.copy(module = module.withIsTransitive(false).withIsForce(true))
-          }
-          scalaVersion -> modifiedDependencies
+      dependencies.map { module =>
+        // If you want this not to be intransitive, set `isChanging` in your dependency
+        if (module.isChanging || module.revision.endsWith("-SNAPSHOT")) module
+        else module.withIsTransitive(false).withIsForce(true)
       }
     }
   }
 
   private[sbt] object LockFileContent {
     private val DefaultVersion = "0.1"
-    def apply(updateInputs: UpdateInputs, deps: ScalaVersionDependencies): LockFileContent =
-      LockFileContent(DefaultVersion, UpdateInputs.hash(updateInputs), deps)
+    def apply(seedDependencies: Vector[ModuleID],
+              allExplicitDependencies: Vector[ModuleID]): LockFileContent =
+      LockFileContent(DefaultVersion, hashModules(seedDependencies), allExplicitDependencies)
 
     import sjsonnew.{ LNil, LList }
     import sjsonnew.LList.:*:
     import sjsonnew.IsoLList.Aux
     import AltLibraryManagementCodec._
 
-    implicit val artifactInfoIso = LList.iso(
-      (a: ArtifactInfo) => ("artifact", a.artifact) :*: ("checksum", a.checksum) :*: LNil,
-      (in: Artifact :*: String :*: LNil) => ArtifactInfo(in.head, in.tail.head)
-    )
-
-    implicit val resolvedModuleIso = LList.iso(
-      (r: ResolvedModule) => ("module", r.module) :*: ("artifacts", r.artifacts) :*: LNil,
-      (in: ModuleID :*: Vector[ArtifactInfo] :*: LNil) => ResolvedModule(in.head, in.tail.head)
-    )
-
     implicit val lockFileFormatIso = LList.iso(
-      (l: LockFileContent) => ("hash", l.hash) :*: ("modules", l.dependencies) :*: LNil,
-      (in: String :*: String :*: Map[String, Vector[ResolvedModule]] :*: LNil) =>
+      (l: LockFileContent) =>
+        ("version", l.version) :*: ("seed", l.seed) :*: ("dependencies", l.dependencies) :*: LNil,
+      (in: String :*: String :*: Vector[ModuleID] :*: LNil) =>
         LockFileContent(in.head, in.tail.head, in.tail.tail.head)
     )
-
-    def collectModules(updateReport: UpdateReport): Vector
   }
 
   private[sbt] def createLockFileStore(lockFile: File): CacheStore =
@@ -361,15 +342,6 @@ object LibraryManagement {
       if (alreadyExists) s"$Step The dependency lock file has been updated."
       else s"$Step The dependency lock file has been generated."
     logger.success(performedActionMsg)
-  }
-
-  /** @return Get the lock file content if it's up to date, [[None]] otherwise. */
-  private[sbt] def getUpToDateLockFile(updateInputs: UpdateInputs,
-                                       lockStore: CacheStore,
-                                       logger: Logger): Option[LockFileContent] = {
-    val currentLockFileContents = readFromLockFile(lockStore)
-    val newInputsHash = UpdateInputs.hash(updateInputs, logger)
-    currentLockFileContents.flatMap(f => if (f.hash == newInputsHash) Some(f) else None)
   }
 
   private[this] def fileUptodate(file: File, stamps: Map[File, Long]): Boolean =

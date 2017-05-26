@@ -351,8 +351,8 @@ object Keys {
   val updateSbtClassifiers = TaskKey[UpdateReport]("update-sbt-classifiers", "Resolves and optionally retrieves classifiers, such as javadocs and sources, for sbt, transitively.", BPlusTask, updateClassifiers)
   val sourceArtifactTypes = SettingKey[Set[String]]("source-artifact-types", "Ivy artifact types that correspond to source artifacts. Used by IDEs to resolve these resources.", BSetting)
   val docArtifactTypes = SettingKey[Set[String]]("doc-artifact-types", "Ivy artifact types that correspond to javadoc artifacts. Used by IDEs to resolve these resources.", BSetting)
-  val dependencyLockFile = SettingKey[File]("dependency-lock-file", "The file to store the dependency resolution.", BSetting)
-  val generateDependencyLock = TaskKey[Boolean]("generate-dependency-lock", "Generate dependency lock.", BTask)
+  val dependencyLockDir = SettingKey[File]("dependency-lock-dir", "The directory to store all the dependency lock files.", BSetting)
+  val dependencyLockFile = SettingKey[File]("dependency-lock-file", "The file to store the dependencies of a given project and cross version.", BSetting)
 
   val publishConfiguration = TaskKey[PublishConfiguration]("publish-configuration", "Configuration for publishing to a repository.", DTask)
   val publishLocalConfiguration = TaskKey[PublishConfiguration]("publish-local-configuration", "Configuration for publishing to the local Ivy repository.", DTask)

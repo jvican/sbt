@@ -1817,6 +1817,8 @@ object Classpaths {
     },
     evictionWarningOptions in update := EvictionWarningOptions.default,
     dependencyPositions := dependencyPositionsTask.value,
+    dependencyLockDir := baseDirectory.value / "locks",
+    dependencyLockFile := dependencyLockDir.value / s"dependencies_${scalaBinaryVersion.value}.json",
     unresolvedWarningConfiguration in update := UnresolvedWarningConfiguration(
       dependencyPositions.value),
     update := (updateTask tag (Tags.Update, Tags.Network)).value,
@@ -1875,9 +1877,7 @@ object Classpaths {
           s.log
         )
       }
-    } tag (Tags.Update, Tags.Network)).value,
-    dependencyLockFile := baseDirectory.value / "dependency-lock.json",
-    generateDependencyLock := generateLockFile0.value
+    } tag (Tags.Update, Tags.Network)).value
   )
 
   val jvmBaseSettings: Seq[Setting[_]] = Seq(
@@ -2173,38 +2173,6 @@ object Classpaths {
     )
   }
 
-  /** Creates a dependency lock file from an [[UpdateReport]].
-   *
-   * @return Whether the dependency lock file was generated or not.
-   */
-  private[sbt] def generateLockFile0: Initialize[Task[Boolean]] = Def.taskDyn {
-    val logger = streams.value.log
-    val lockFile = dependencyLockFile.value
-    val existsLockFile = lockFile.exists()
-    val updateInputs = updateInputs0.value
-    val lockStore = LibraryManagement.createLockFileStore(lockFile)
-    val currentLockFile = LibraryManagement.getUpToDateLockFile(updateInputs, lockStore, logger)
-
-    currentLockFile match {
-      case Some(upToDateContents) =>
-        Def.task {
-          val sameHash = upToDateContents.hash
-          logger.debug(s"The hash of the update inputs is the same: $sameHash.")
-          lockStore.close()
-          false
-        }
-      case None =>
-        Def.task {
-          val newModules = update.value.allModules
-          val newInputsHash = LibraryManagement.UpdateInputs.hash(updateInputs)
-          val newContents = LibraryManagement.LockFileContent.apply(newInputsHash, newModules)
-          LibraryManagement.writeToLockFile(newContents, lockStore, existsLockFile, logger)
-          lockStore.close()
-          true
-        }
-    }
-  }
-
   /** Maps module ids (lib dependencies) to positions of the sbt files where they were defined.
    *
    * This information is useful for the update task that uses it to report errors. It is usually
@@ -2216,13 +2184,14 @@ object Classpaths {
       import sbt.librarymanagement.LibraryManagementCodec._
       val cacheStoreFactory = streams.value.cacheStoreFactory sub updateCacheName.value
       val outStore = cacheStoreFactory make "output_dsp"
+      val st = state.value
+      val thisRef = thisProjectRef.value
       val cached = Tracked.inputChanged(cacheStoreFactory make "input_dsp") {
         (inChanged: Boolean, in: Seq[ModuleID]) =>
           Tracked
             .lastOutput[Seq[ModuleID], Map[ModuleID, SourcePosition]](outStore) {
               case (_, Some(same)) if !inChanged => same
-              case _ =>
-                modulesToPositions(state.value, thisProjectRef.value, libraryDependencies)
+              case _                             => modulesToPositions(st, thisRef, libraryDependencies)
             }
             .apply(in)
       }

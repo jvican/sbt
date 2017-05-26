@@ -3,21 +3,7 @@ ivyPaths := IvyPaths(
   Some(target.value / "ivy-cache")
 )
 
-def checkDependencyLockFile(expects: Boolean): Def.Initialize[Task[Unit]] = Def.task {
-  val hasBeenGenerated = generateDependencyLock.value
-  if (hasBeenGenerated != expects) {
-    if (expects) sys.error("Dependency lock file has not been generated/overridden.")
-    else sys.error("Dependency lock file has been generated while expecting otherwise.")
-  } else ()
-}
-
-val checkDependencyLockFileIsUpdated = taskKey[Unit]("Check lock file is updated.")
-val checkDependencyLockFileIsTheSame = taskKey[Unit]("Check lock file is the same.")
-
-val commonSettings: Seq[Setting[_]] = List(
-  checkDependencyLockFileIsUpdated := checkDependencyLockFile(true).value,
-  checkDependencyLockFileIsTheSame := checkDependencyLockFile(false).value
-)
+val commonSettings: Seq[Setting[_]] = List(scalaVersion := "2.12.2")
 
 val p1 = project
   .in(file("p1"))

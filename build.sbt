@@ -47,7 +47,7 @@ def commonSettings: Seq[Setting[_]] =
     crossScalaVersions := Seq(baseScalaVersion),
     bintrayPackage := (bintrayPackage in ThisBuild).value,
     bintrayRepository := (bintrayRepository in ThisBuild).value,
-    publishArtifact in Test := false,
+    publishArtifact in Test := false
     /*
     mimaPreviousArtifacts := Set.empty, // Set(organization.value % moduleName.value % "1.0.0"),
     mimaBinaryIssueFilters ++= {
@@ -55,8 +55,6 @@ def commonSettings: Seq[Setting[_]] =
       Seq()
     },
      */
-    fork in compile := true,
-    fork in run := true
   ) flatMap (_.settings)
 
 def minimalSettings: Seq[Setting[_]] =
