@@ -172,15 +172,16 @@ private[sbt] object Load {
         loaded.settings
       }
   }
+
   def loadGlobal(state: State,
                  base: File,
                  global: File,
-                 config: LoadBuildConfiguration): LoadBuildConfiguration =
+                 config: LoadBuildConfiguration): LoadBuildConfiguration = {
     if (base != global && global.exists) {
       val gp = GlobalPlugin.load(global, state, config)
       config.copy(globalPlugin = Some(gp))
-    } else
-      config
+    } else config
+  }
 
   def defaultDelegates: LoadedBuild => Scope => Seq[Scope] = (lb: LoadedBuild) => {
     val rootProject = getRootProject(lb.units)
