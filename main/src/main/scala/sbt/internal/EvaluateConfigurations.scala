@@ -244,7 +244,10 @@ object Index {
     {
       // AttributeEntry + the checked type test 'value: Task[_]' ensures that the cast is correct.
       //  (scalac couldn't determine that 'key' is of type AttributeKey[Task[_]] on its own and a type match still required the cast)
-      val pairs = for (scope <- data.scopes; AttributeEntry(key, value: Task[_]) <- data.data(scope).entries) yield (value, ScopedKey(scope, key.asInstanceOf[AttributeKey[Task[_]]])) // unclear why this cast is needed even with a type test in the above filter
+      val pairs = for {
+        scope <- data.scopes
+        AttributeEntry(key, value: Task[_]) <- data.data(scope).entries
+      } yield (value, ScopedKey(scope, key))
       pairs.toMap[Task[_], ScopedKey[Task[_]]]
     }
 
