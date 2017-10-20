@@ -23,6 +23,8 @@ object ScriptedPlugin extends AutoPlugin {
     val scriptedBufferLog = SettingKey[Boolean]("scripted-buffer-log")
     val scriptedClasspath = TaskKey[PathFinder]("scripted-classpath")
     val scriptedTests = TaskKey[AnyRef]("scripted-tests")
+    val scriptedParallelInstances =
+      settingKey[Int]("Configure the number of scripted instances for parallel testing.")
     val scriptedRun = TaskKey[Method]("scripted-run")
     val scriptedLaunchOpts = SettingKey[Seq[String]](
       "scripted-launch-opts",
@@ -51,6 +53,7 @@ object ScriptedPlugin extends AutoPlugin {
     scriptedBufferLog := true,
     scriptedClasspath := getJars(ScriptedConf).value,
     scriptedTests := scriptedTestsTask.value,
+    scriptedParallelInstances := 1,
     scriptedRun := scriptedRunTask.value,
     scriptedDependencies := {
       def use[A](x: A*): Unit = () // avoid unused warnings
@@ -69,13 +72,16 @@ object ScriptedPlugin extends AutoPlugin {
     }
 
   def scriptedRunTask: Initialize[Task[Method]] = Def.task(
-    scriptedTests.value.getClass.getMethod("run",
-                                           classOf[File],
-                                           classOf[Boolean],
-                                           classOf[Array[String]],
-                                           classOf[File],
-                                           classOf[Array[String]],
-                                           classOf[java.util.List[File]])
+    scriptedTests.value.getClass.getMethod(
+      "runInParallel",
+      classOf[File],
+      classOf[Boolean],
+      classOf[Array[String]],
+      classOf[File],
+      classOf[Array[String]],
+      classOf[java.util.List[File]],
+      classOf[Integer]
+    )
   )
 
   import DefaultParsers._
@@ -136,7 +142,8 @@ object ScriptedPlugin extends AutoPlugin {
         args.toArray,
         sbtLauncher.value,
         scriptedLaunchOpts.value.toArray,
-        new java.util.ArrayList()
+        new java.util.ArrayList(),
+        scriptedParallelInstances.value: Integer
       )
     } catch { case e: java.lang.reflect.InvocationTargetException => throw e.getCause }
   }
