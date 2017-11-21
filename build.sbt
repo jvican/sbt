@@ -447,14 +447,15 @@ lazy val sbtProj = (project in file("sbt"))
   .configure(addSbtCompilerBridge)
 
 def runNpm(command: String, base: File, log: sbt.internal.util.ManagedLogger) = {
-  val npm = if (sbt.internal.util.Util.isWindows) "npm.cmd" else "npm"
-  import scala.sys.process._
-  try {
-    val exitCode = Process(s"$npm $command", Option(base)) ! log
-    if (exitCode != 0) throw new Exception("Process returned exit code: " + exitCode)
-  } catch {
-    case e: java.io.IOException => log.warn("failed to run npm " + e.getMessage)
-  }
+  ()
+  /* val npm = if (sbt.internal.util.Util.isWindows) "npm.cmd" else "npm" */
+  /* import scala.sys.process._ */
+  /* try { */
+  /*   val exitCode = Process(s"$npm $command", Option(base)) ! log */
+  /*   if (exitCode != 0) throw new Exception("Process returned exit code: " + exitCode) */
+  /* } catch { */
+  /*   case e: java.io.IOException => log.warn("failed to run npm " + e.getMessage) */
+  /* } */
 }
 
 lazy val vscodePlugin = (project in file("vscode-sbt-scala"))
