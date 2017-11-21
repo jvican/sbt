@@ -6,3 +6,8 @@ node_modules
 vscode-sbt-scala/client/server
 npm-debug.log
 *.vsix
+*.config
+test-config.sbt
+test
+base-directory
+
