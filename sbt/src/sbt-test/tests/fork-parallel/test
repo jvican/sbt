@@ -1,0 +1,8 @@
+# https://github.com/sbt/sbt/issues/3545
+# > test
+# -> check
+
+> clean
+> set testForkedParallel := true
+> test
+> check

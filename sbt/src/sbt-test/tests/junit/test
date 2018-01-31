@@ -1,0 +1,14 @@
+> test
+
+$ copy-file changes/Success.scala src/test/scala/Success.scala
+> test
+
+> testOnly com.foo.junit.test.blah.Success
+
+$ copy-file changes/Failure.scala src/test/scala/Failure.scala
+-> test
+-> testOnly com.foo.junit.test.blah.Failure
+> testOnly com.foo.junit.test.blah.Success
+
+> set fork in Test := true
+> testOnly com.foo.junit.test.blah.Success

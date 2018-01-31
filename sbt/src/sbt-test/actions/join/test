@@ -1,0 +1,2 @@
+# the ; clean ; part is to test that semicolon-separated commands work with spaces
+> ; clean ; compile 

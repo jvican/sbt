@@ -1,0 +1,91 @@
+> plugins
+
+# single project, 'mark' not defined
+-> mark
+$ absent ran
+
+# single project, 'mark' defined
+> set Mark := mark.value
+> mark
+$ exists ran
+$ delete ran
+
+# single project, aggregate = true on Mark
+> set aggregate in Mark := true
+> mark
+$ exists ran
+$ delete ran
+
+# single project, aggregate = false on Mark
+> set aggregate in Mark := false
+> mark
+$ exists ran
+$ delete ran
+
+# switch to multi-project, no aggregation yet.  'reload' will drop session settings
+$ touch multi
+$ copy-file changes/build.sbt build.sbt
+$ mkdir sub sub/sub
+> reload
+
+# define in root project only
+> set Mark := mark.value
+> mark
+$ exists ran
+$ absent sub/ran
+$ delete ran
+
+# define in sub project, but shouldn't run without aggregation
+> set Mark in sub := mark(sub).value
+> mark
+$ exists ran
+$ absent sub/ran
+$ delete ran
+
+# should be able to run it directly...
+> sub/mark
+$ absent ran
+$ exists sub/ran
+$ delete sub/ran
+
+# unset the root task.  the sub task shouldn't be runnable from root without aggregation
+> session remove 1
+-> mark
+$ absent ran sub/ran
+
+# enable aggregation.  'reload' resets session settings
+$ touch aggregate
+> reload
+
+# add tasks to each subproject
+> set Mark in sub := mark(sub).value
+> set Mark in sub2 := mark(sub2).value
+
+# check that aggregation works when root project has no task
+> mark
+$ exists sub/ran sub/sub/ran
+$ absent ran
+$ delete sub/ran sub/sub/ran
+
+# check that aggregation works on sub/
+> sub/mark
+$ exists sub/ran sub/sub/ran
+$ absent ran
+$ delete sub/ran sub/sub/ran
+
+# add task to root project
+> set Mark := mark.value
+
+# disable aggregation for sub/mark so that sub2/mark doesn't run
+> set aggregate in (sub,Mark) := false
+> mark
+$ exists ran sub/ran
+$ absent sub/sub/ran
+$ delete ran sub/ran
+
+# the aggregation setting in a leaf shouldn't affect whether it can be run directly
+> set aggregate in (sub2, Mark) := false
+> sub2/mark
+$ exists sub/sub/ran
+$ absent ran sub/ran
+$ delete sub/sub/ran

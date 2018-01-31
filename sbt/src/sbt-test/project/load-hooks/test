@@ -1,0 +1,9 @@
+> reboot
+> checkCount 1 0
+> checkCount 1 0
+> reload
+> checkCount 2 1
+> set maxErrors := 1
+> checkCount 3 2
+> reboot
+> checkCount 1 0

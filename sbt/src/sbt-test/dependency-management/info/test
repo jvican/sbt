@@ -1,0 +1,11 @@
+> checkDownload
+> checkInfo
+
+> clean
+$ touch info
+> reload
+
+> show customInfo
+> checkDownload
+> show customInfo
+> checkInfo

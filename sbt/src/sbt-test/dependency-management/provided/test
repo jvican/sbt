@@ -1,0 +1,16 @@
+> show update
+
+# verify that the classpaths are correct for when a dependency is in the compile configuration
+> check runtime true
+> check compile true
+> check provided false
+> check test true
+
+# verify that the classpaths are correct for when a dependency is in the provided configuration
+$ touch useProvided
+> reload
+
+> check runtime false
+> check compile true
+> check test true
+> check provided true

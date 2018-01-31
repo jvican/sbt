@@ -1,0 +1,23 @@
+> debug
+# load the project definition with transitive dependencies enabled
+# and check that they are not downloaded
+#$ pause
+$ touch transitive
+
+#$ pause
+> reload
+#$ pause
+
+> checkTransitive
+-> checkIntransitive
+
+
+# load the project definition with transitive dependencies disabled
+# and check that they are not downloaded
+
+$ delete ivy-cache
+$ delete transitive
+> reload
+
+-> checkTransitive
+> checkIntransitive

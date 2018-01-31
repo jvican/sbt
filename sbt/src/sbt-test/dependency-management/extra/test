@@ -1,0 +1,12 @@
+> publish
+
+$ delete DefineColor.sbt
+$ copy-file changes/UseColor.sbt UseColor.sbt
+$ copy-file changes/blue color
+> reload
+
+-> update
+
+$ copy-file changes/red color
+> reload
+> update

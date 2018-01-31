@@ -1,0 +1,12 @@
+sbt: Run Component
+Copyright 2011 - 2017, Lightbend, Inc.
+Copyright 2008 - 2010, Mark Harrah
+Licensed under BSD-3-Clause license (see LICENSE)
+
+Partially based on exit trapping in Nailgun by Pete Kirkham,
+copyright 2004, Martian Software, Inc
+licensed under Apache 2.0 License.
+
+Portions based on code by Pete Kirkham in Nailgun
+Copyright 2004, Martian Software, Inc
+Licensed under the Apache License, Version 2.0 (see licenses/LICENSE_Apache)

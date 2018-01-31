@@ -1,0 +1,26 @@
+> publish-local
+
+$ touch mavenStyle
+> set organization in ThisBuild :="B"
+> publish-local
+
+$ touch sub/mavenStyle
+> set organization in ThisBuild :="C"
+> publish-local
+
+$ delete mavenStyle
+> set organization in ThisBuild :="D"
+> publish-local
+
+> set name := "Retrieve Test"
+> clean
+$ delete project/MultiPublishTest.scala
+$ copy-file changes/RetrieveTest.scala project/RetrieveTest.scala
+> reload
+
+> update
+
+$ touch mavenStyle
+> reload
+> clean
+> update

@@ -1,0 +1,68 @@
+package sbt.protocol
+@target(Scala)
+@codecPackage("sbt.protocol.codec")
+@fullCodec("JsonProtocol")
+
+## Message to invoke command.
+interface CommandMessage {
+}
+
+type InitCommand implements CommandMessage {
+  token: String
+  execId: String
+}
+
+## Command to execute sbt command.
+type ExecCommand implements CommandMessage {
+  commandLine: String!
+  execId: String @since("0.0.1")
+}
+
+type SettingQuery implements CommandMessage {
+  setting: String!
+}
+
+
+## Message for events.
+interface EventMessage {
+}
+
+type ChannelAcceptedEvent implements EventMessage {
+  channelName: String!
+}
+
+## Log event.
+type LogEvent implements EventMessage {
+  level: String!
+  message: String!
+}
+
+## Status event.
+type ExecStatusEvent implements EventMessage {
+  status: String!
+  channelName: String
+  execId: String
+  commandQueue: [String]
+}
+
+interface SettingQueryResponse implements EventMessage {}
+
+type SettingQuerySuccess implements SettingQueryResponse {
+  value: sjsonnew.shaded.scalajson.ast.unsafe.JValue!
+  contentType: String!
+}
+
+type SettingQueryFailure implements SettingQueryResponse {
+  message: String!
+}
+
+# enum Status {
+#  Ready
+#  Processing
+# }
+
+## Execution event.
+type ExecutionEvent {
+  success: String!
+  commandLine: String!
+}

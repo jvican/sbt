@@ -1,0 +1,4 @@
+> helloWorldTest
+> buildSbtTest
+> evilClearLogger
+> set version := { sLog.value.info("yo"); version.value }

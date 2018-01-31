@@ -1,0 +1,43 @@
+# Publish the def/{a,b} projects to the local repository
+
+$ copy-file changes/def/build.sbt build.sbt
+$ copy-file changes/def/Def.java b/Def.java
+> reload
+> publishLocal
+> clean
+
+
+# Resolve the projects from the local repository
+# The resolver will be marked as local in the cache
+# The dependency on def/b will be properly resolved
+
+$ delete build.sbt
+$ delete b/Def.java
+$ copy-file changes/use/build.sbt build.sbt
+$ copy-file changes/use/Use.java Use.java
+> reload
+> compile
+> clean
+
+
+# Publish the def/{a,b} projects to the local repository again
+# This will change the resolver in the cache to be inter-project
+
+$ delete build.sbt
+$ copy-file changes/both/build.sbt build.sbt
+$ copy-file changes/def/Def.java b/Def.java
+> reload
+> publishLocal
+> clean
+
+
+# Resolve from local again.  This will succeed, but the jars
+#  won't be on the classpath if the resolver isn't ignored.
+
+$ delete build.sbt
+$ delete b/Def.java
+$ copy-file changes/use/build.sbt build.sbt
+$ copy-file changes/use/Use.java Use.java
+> reload
+> compile
+

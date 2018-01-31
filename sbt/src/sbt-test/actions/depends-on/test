@@ -1,0 +1,23 @@
+-> a
+-> b
+-> c
+-> d
+
+$ touch succeed
+> a
+> b
+> c
+> d
+
+> project input
+-> j
+-> f fail
+> f succeed
+-> g succeed
+
+-> h fail
+$ absent h
+> set traceLevel in ThisBuild := 100
+> set logLevel in ThisBuild := Level.Debug
+> h succeed
+$ exists h

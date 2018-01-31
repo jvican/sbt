@@ -1,0 +1,19 @@
+# verify that check fails when test class is not present
+-> check
+
+# verify that check-full succeeds
+> checkFull
+
+# publish test jar to test repository
+> publish
+
+# delete test jar and verify check fails again
+> clean
+-> check
+
+# tell project definition to switch to retrieve mode
+$ touch retrieve
+> reload
+
+# verify that artifact with extension, type, and classifier can be retrieved
+> check

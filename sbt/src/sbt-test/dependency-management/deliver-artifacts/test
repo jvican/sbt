@@ -1,0 +1,4 @@
+> a/publishLocal
+> b/update
+# verify that A's artifact was published and available for B to compile/run against
+> b/run

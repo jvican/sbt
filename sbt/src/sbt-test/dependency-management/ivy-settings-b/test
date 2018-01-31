@@ -1,0 +1,4 @@
+-> update
+
+$ copy-file changes/scala-tools-ivysettings.xml ivysettings.xml
+> check
