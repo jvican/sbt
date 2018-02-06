@@ -94,6 +94,7 @@ object BuildPaths {
   private[this] def defaultGlobalZinc(globalBase: File) = globalBase / "zinc"
 
   def configurationSources(base: File): Seq[File] = (base * (GlobFilter("*.sbt") - ".sbt")).get
+  def configurationSources(bases: Seq[File]): Seq[File] = bases.flatMap(configurationSources(_))
   def pluginDirectory(definitionBase: File) = definitionBase / PluginsDirectoryName
 
   def evalOutputDirectory(base: File) = outputDirectory(base) / "config-classes"
@@ -107,6 +108,7 @@ object BuildPaths {
   final val GlobalBaseProperty = "sbt.global.base"
   final val StagingProperty = "sbt.global.staging"
   final val GlobalPluginsProperty = "sbt.global.plugins"
+  final val UserPluginsProperty = "sbt.user.plugins"
   final val GlobalSettingsProperty = "sbt.global.settings"
   final val DependencyBaseProperty = "sbt.dependency.base"
   final val GlobalZincProperty = "sbt.global.zinc"
