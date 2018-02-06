@@ -10,6 +10,7 @@ import KeyRanks.DSetting
 object BuildPaths {
   val globalBaseDirectory = AttributeKey[File]("global-base-directory", "The base directory for global sbt configuration and staging.", DSetting)
   val globalPluginsDirectory = AttributeKey[File]("global-plugins-directory", "The base directory for global sbt plugins.", DSetting)
+  val userPluginsDirectory = AttributeKey[File]("user-plugins-directory", "The base directory for user global sbt plugins.", DSetting)
   val globalSettingsDirectory = AttributeKey[File]("global-settings-directory", "The base directory for global sbt settings.", DSetting)
   val stagingDirectory = AttributeKey[File]("staging-directory", "The directory for staging remote projects.", DSetting)
   val dependencyBaseDirectory = AttributeKey[File]("dependency-base-directory", "The base directory for caching dependency resolution.", DSetting)
@@ -63,6 +64,7 @@ object BuildPaths {
   private[this] def defaultDependencyBase(globalBase: File) = globalBase / "dependency"
 
   def configurationSources(base: File): Seq[File] = (base * (GlobFilter("*.sbt") - ".sbt")).get
+  def configurationSources(bases: Seq[File]): Seq[File] = bases.flatMap(configurationSources(_))
   def pluginDirectory(definitionBase: File) = definitionBase / PluginsDirectoryName
 
   def evalOutputDirectory(base: File) = outputDirectory(base) / "config-classes"
@@ -81,6 +83,7 @@ object BuildPaths {
   final val GlobalBaseProperty = "sbt.global.base"
   final val StagingProperty = "sbt.global.staging"
   final val GlobalPluginsProperty = "sbt.global.plugins"
+  final val UserPluginsProperty = "sbt.user.plugins"
   final val GlobalSettingsProperty = "sbt.global.settings"
   final val DependencyBaseProperty = "sbt.dependency.base"
 

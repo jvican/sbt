@@ -582,7 +582,7 @@ object Load {
     /*timed(s"Load.loadTransitive(${ newProjects.map(_.id) })", log)*/ {
       // load all relevant configuration files (.sbt, as .scala already exists at this point)
       def discover(auto: AddSettings, base: File): DiscoveredProjects =
-        discoverProjects(auto, base, plugins, eval, memoSettings)
+        discoverProjects(auto, base, plugins, eval, memoSettings, context)
       // Step two:
       // a. Apply all the project manipulations from .sbt files in order
       // b. Deduce the auto plugins for the project
@@ -600,7 +600,7 @@ object Load {
             try plugins.detected.deducePluginsFromProject(p1, log)
             catch { case e: AutoPluginException => throw translateAutoPluginException(e, p) }
           }
-        val p2 = this.resolveProject(p1, autoPlugins, plugins, injectSettings, memoSettings, log)
+        val p2 = this.resolveProject(p1, autoPlugins, plugins, injectSettings, memoSettings, log, context)
         val projectLevelExtra =
           if (expand) autoPlugins flatMap { _.derivedProjects(p2) map {_.setProjectOrigin(ProjectOrigin.DerivedProject)} }
           else Nil
@@ -699,7 +699,8 @@ object Load {
     loadedPlugins: sbt.LoadedPlugins,
     globalUserSettings: InjectSettings,
     memoSettings: mutable.Map[File, LoadedSbtFile],
-    log: Logger): Project =
+    log: Logger,
+    ctx: PluginManagement.Context): Project =
     timed(s"Load.resolveProject(${p.id})", log) {
       import AddSettings._
       val autoConfigs = projectPlugins.flatMap(_.projectConfigurations)
@@ -707,7 +708,10 @@ object Load {
       // 3. Use AddSettings instance to order all Setting[_]s appropriately
       val allSettings = {
         // TODO - This mechanism of applying settings could be off... It's in two places now...
-        lazy val defaultSbtFiles = configurationSources(p.base)
+        lazy val defaultSbtFiles =
+          if (!ctx.globalPluginProject) configurationSources(p.base)
+          else configurationSources(p.base :: getFileProperty(UserPluginsProperty).toList)
+
         // Grabs the plugin settings for old-style sbt plugins.
         def pluginSettings(f: Plugins) =
           timed(s"Load.resolveProject(${p.id}): expandSettings(...): pluginSettings($f)", log) {
@@ -760,10 +764,13 @@ object Load {
     projectBase: File,
     loadedPlugins: sbt.LoadedPlugins,
     eval: () => Eval,
-    memoSettings: mutable.Map[File, LoadedSbtFile]): DiscoveredProjects = {
+    memoSettings: mutable.Map[File, LoadedSbtFile],
+    ctx: PluginManagement.Context): DiscoveredProjects = {
 
     // Default sbt files to read, if needed
-    lazy val defaultSbtFiles = configurationSources(projectBase)
+    lazy val defaultSbtFiles =
+      if (!ctx.globalPluginProject) configurationSources(projectBase)
+      else configurationSources(projectBase :: getFileProperty(UserPluginsProperty).toList)
 
     // Classloader of the build
     val loader = loadedPlugins.loader
