@@ -6,8 +6,8 @@ import Sxr.sxr
 // ThisBuild settings take lower precedence,
 // but can be shared across the multi projects.
 def buildLevelSettings: Seq[Setting[_]] = inThisBuild(Seq(
-  organization := "org.scala-sbt",
-  version := "0.13.17",
+  organization := "ch.epfl.scala",
+  version := "0.13.17-sourcedeps",
   bintrayOrganization := Some(if (publishStatus.value == "releases") "typesafe" else "sbt"),
   bintrayRepository := s"ivy-${publishStatus.value}",
   bintrayPackage := "sbt",
@@ -29,6 +29,7 @@ def commonSettings: Seq[Setting[_]] = Seq(
   crossScalaVersions := Seq(scala210),
   bintrayPackage := (bintrayPackage in ThisBuild).value,
   bintrayRepository := (bintrayRepository in ThisBuild).value,
+  publishTo := sonatypePublishTo.value,
   test in assembly := {},
   assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = true),
   assemblyMergeStrategy in assembly := {
