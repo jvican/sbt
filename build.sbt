@@ -48,6 +48,7 @@ def commonSettings: Seq[Setting[_]] =
          |""".stripMargin
     )),
     scalaVersion := baseScalaVersion,
+    publishTo := sonatypePublishTo.value,
     componentID := None,
     resolvers += Resolver.typesafeIvyRepo("releases"),
     resolvers += Resolver.sonatypeRepo("snapshots"),
@@ -680,3 +681,7 @@ def customCommands: Seq[Setting[_]] = Seq(
       state
   }
 )
+
+organization in ThisBuild := "ch.epfl.scala"
+version in ThisBuild := "1.1.0-sourcedeps"
+

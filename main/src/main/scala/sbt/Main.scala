@@ -769,7 +769,8 @@ object BuiltinCommands {
 
     val buildPropsLines = if (buildProps.canRead) IO.readLines(buildProps) else Nil
 
-    val sbtVersionAbsent = buildPropsLines forall (!isSbtVersionLine(_))
+    val sbtVersionAbsent = (buildPropsLines forall (!isSbtVersionLine(_))) &&
+      Option(System.getProperty("sbt.version")).isEmpty
 
     if (sbtVersionAbsent) {
       val warnMsg = s"No sbt.version set in project/build.properties, base directory: $baseDir"
