@@ -1,6 +1,5 @@
 import sbt._
 import Keys._
-import com.typesafe.sbt.JavaVersionCheckPlugin.autoImport._
 import _root_.bintray.BintrayPlugin.autoImport._
 import _root_.bintray.InternalBintrayKeys._
 
@@ -16,7 +15,5 @@ object Release {
     }
   )
 
-  def javaVersionCheckSettings = Seq(
-    javaVersionPrefix in javaVersionCheck := None
-  )
+  def javaVersionCheckSettings = Seq()
 }

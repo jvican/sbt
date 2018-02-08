@@ -7,9 +7,9 @@ import Sxr.sxr
 // but can be shared across the multi projects.
 def buildLevelSettings: Seq[Setting[_]] = inThisBuild(Seq(
   organization := "ch.epfl.scala",
-  version := "0.13.17-sourcedeps",
-  bintrayOrganization := Some(if (publishStatus.value == "releases") "typesafe" else "sbt"),
-  bintrayRepository := s"ivy-${publishStatus.value}",
+  version := "0.13.17-sourcedeps-2",
+  bintrayOrganization := Some("scalacenter"),
+  bintrayRepository := "sbt-releases",
   bintrayPackage := "sbt",
   bintrayReleaseOnPublish := false
 ))
@@ -29,7 +29,6 @@ def commonSettings: Seq[Setting[_]] = Seq(
   crossScalaVersions := Seq(scala210),
   bintrayPackage := (bintrayPackage in ThisBuild).value,
   bintrayRepository := (bintrayRepository in ThisBuild).value,
-  publishTo := sonatypePublishTo.value,
   test in assembly := {},
   assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = true),
   assemblyMergeStrategy in assembly := {
