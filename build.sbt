@@ -717,7 +717,7 @@ def customCommands: Seq[Setting[_]] = Seq(
       state
   }
 )
-
+/*
 inThisBuild(Seq(
   whitesourceProduct                   := "Lightbend Reactive Platform",
   whitesourceAggregateProjectName      := "sbt-master",
@@ -726,3 +726,4 @@ inThisBuild(Seq(
   whitesourceFailOnError               := sys.env.contains("WHITESOURCE_PASSWORD"), // fail if pwd is present
   whitesourceForceCheckAllDependencies := true,
 ))
+*/
