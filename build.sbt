@@ -428,7 +428,6 @@ lazy val mainSettingsProj = (project in file("main-settings"))
   .settings(
     testedBaseSettings,
     name := "Main Settings",
-    resourceGenerators in Compile += generateToolboxClasspath.taskValue,
     mimaSettings,
     mimaBinaryIssueFilters ++= Seq(
       exclude[DirectMissingMethodProblem]("sbt.Scope.display012StyleMasked"),
