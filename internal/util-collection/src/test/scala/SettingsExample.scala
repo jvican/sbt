@@ -11,24 +11,24 @@ import sbt.util.Show
 
 /** Define our settings system */
 // A basic scope indexed by an integer.
-final case class Scope(nestIndex: Int, idAtIndex: Int = 0)
+final case class ScopeTest(nestIndex: Int, idAtIndex: Int = 0)
 
 // Extend the Init trait.
 //  (It is done this way because the Scope type parameter is used everywhere in Init.
 //  Lots of type constructors would become binary, which as you may know requires lots of type lambdas
 //  when you want a type function with only one parameter.
 //  That would be a general pain.)
-case class SettingsExample() extends Init[Scope] {
+case class SettingsExample() extends Init[ScopeTest] {
   // Provides a way of showing a Scope+AttributeKey[_]
   val showFullKey: Show[ScopedKey[_]] = Show[ScopedKey[_]]((key: ScopedKey[_]) => {
     s"${key.scope.nestIndex}(${key.scope.idAtIndex})/${key.key.label}"
   })
 
   // A sample delegation function that delegates to a Scope with a lower index.
-  val delegates: Scope => Seq[Scope] = {
-    case s @ Scope(index, proj) =>
+  val delegates: ScopeTest => Seq[ScopeTest] = {
+    case s @ ScopeTest(index, proj) =>
       s +: (if (index <= 0) Nil
-            else { (if (proj > 0) List(Scope(index)) else Nil) ++: delegates(Scope(index - 1)) })
+            else { (if (proj > 0) List(ScopeTest(index)) else Nil) ++: delegates(ScopeTest(index - 1)) })
   }
 
   // Not using this feature in this example.
@@ -46,11 +46,11 @@ case class SettingsUsage(val settingsExample: SettingsExample) {
   val b = AttributeKey[Int]("b")
 
   // Scope these keys
-  val a3 = ScopedKey(Scope(3), a)
-  val a4 = ScopedKey(Scope(4), a)
-  val a5 = ScopedKey(Scope(5), a)
+  val a3 = ScopedKey(ScopeTest(3), a)
+  val a4 = ScopedKey(ScopeTest(4), a)
+  val a5 = ScopedKey(ScopeTest(5), a)
 
-  val b4 = ScopedKey(Scope(4), b)
+  val b4 = ScopedKey(ScopeTest(4), b)
 
   // Define some settings
   val mySettings: Seq[Setting[_]] = Seq(
@@ -62,7 +62,7 @@ case class SettingsUsage(val settingsExample: SettingsExample) {
   // "compiles" and applies the settings.
   //  This can be split into multiple steps to access intermediate results if desired.
   //  The 'inspect' command operates on the output of 'compile', for example.
-  val applied: Settings[Scope] = make(mySettings)(delegates, scopeLocal, showFullKey)
+  val applied: Settings[ScopeTest] = make(mySettings)(delegates, scopeLocal, showFullKey)
 
   // Show results.
   /*	for(i <- 0 to 5; k <- Seq(a, b)) {
