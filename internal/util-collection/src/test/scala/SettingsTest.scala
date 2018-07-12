@@ -51,7 +51,7 @@ object SettingsTest extends Properties("settings") {
       // We wan
       // t to generate lists of keys that DO NOT inclue the "ch" key we use to check things.
       val attrKeys = mkAttrKeys[Int](nr).filter(_.forall(_.label != "ch"))
-      attrKeys map (_ map (ak => ScopedKey(Scope(0), ak)))
+      attrKeys map (_ map (ak => ScopedKey(ScopeTest(0), ak)))
     }.label("scopedKeys").filter(_.nonEmpty)
     forAll(genScopedKeys) { scopedKeys =>
       try {
@@ -102,8 +102,8 @@ object SettingsTest extends Properties("settings") {
   property("Derived setting(s) replace DerivedSetting in the Seq[Setting[_]]") =
     derivedKeepsPosition
   final def derivedKeepsPosition: Prop = {
-    val a: ScopedKey[Int] = ScopedKey(Scope(0), AttributeKey[Int]("a"))
-    val b: ScopedKey[Int] = ScopedKey(Scope(0), AttributeKey[Int]("b"))
+    val a: ScopedKey[Int] = ScopedKey(ScopeTest(0), AttributeKey[Int]("a"))
+    val b: ScopedKey[Int] = ScopedKey(ScopeTest(0), AttributeKey[Int]("b"))
     val prop1 = {
       val settings: Seq[Setting[_]] = Seq(
         setting(a, value(3)),
@@ -134,11 +134,11 @@ object SettingsTest extends Properties("settings") {
   final def derivedSettingsScope(nrProjects: Int): Prop = {
     forAll(mkAttrKeys[Int](2)) {
       case List(key, derivedKey) =>
-        val projectKeys = for { proj <- 1 to nrProjects } yield ScopedKey(Scope(1, proj), key)
+        val projectKeys = for { proj <- 1 to nrProjects } yield ScopedKey(ScopeTest(1, proj), key)
         val projectDerivedKeys = for { proj <- 1 to nrProjects } yield
-          ScopedKey(Scope(1, proj), derivedKey)
-        val globalKey = ScopedKey(Scope(0), key)
-        val globalDerivedKey = ScopedKey(Scope(0), derivedKey)
+          ScopedKey(ScopeTest(1, proj), derivedKey)
+        val globalKey = ScopedKey(ScopeTest(0), key)
+        val globalDerivedKey = ScopedKey(ScopeTest(0), derivedKey)
         // Each project defines an initial value, but the update is defined in globalKey.
         // However, the derived Settings that come from this should be scoped in each project.
         val settings: Seq[Setting[_]] =
@@ -166,14 +166,14 @@ object SettingsTest extends Properties("settings") {
   def tests =
     for (i <- 0 to 5; k <- Seq(a, b)) yield {
       val expected = expectedValues(2 * i + (if (k == a) 0 else 1))
-      checkKey[Int](ScopedKey(Scope(i), k), expected, applied)
+      checkKey[Int](ScopedKey(ScopeTest(i), k), expected, applied)
     }
 
   lazy val expectedValues = None :: None :: None :: None :: None :: None :: Some(3) :: None ::
     Some(3) :: Some(9) :: Some(4) :: Some(9) :: Nil
 
   lazy val ch = AttributeKey[Int]("ch")
-  lazy val chk = ScopedKey(Scope(0), ch)
+  lazy val chk = ScopedKey(ScopeTest(0), ch)
   def chain(i: Int, prev: Initialize[Int]): Initialize[Int] =
     if (i <= 0) prev else chain(i - 1, prev(_ + 1))
 
@@ -186,7 +186,7 @@ object SettingsTest extends Properties("settings") {
     checkKey(chk, Some(expected), eval)
   }
 
-  def checkKey[T](key: ScopedKey[T], expected: Option[T], settings: Settings[Scope]) = {
+  def checkKey[T](key: ScopedKey[T], expected: Option[T], settings: Settings[ScopeTest]) = {
     val value = settings.get(key.scope, key.key)
     ("Key: " + key) |:
       ("Value: " + value) |:
@@ -194,7 +194,7 @@ object SettingsTest extends Properties("settings") {
       (value == expected)
   }
 
-  def evaluate(settings: Seq[Setting[_]]): Settings[Scope] =
+  def evaluate(settings: Seq[Setting[_]]): Settings[ScopeTest] =
     try { make(settings)(delegates, scopeLocal, showFullKey) } catch {
       case e: Throwable => e.printStackTrace(); throw e
     }
